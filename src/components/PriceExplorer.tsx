@@ -27,8 +27,8 @@ type ViewMode = "cards" | "table";
 
 const productTypeLabels: Record<string, string> = {
   全部: "全部",
-  会员充值: "会员充值",
-  成品号: "成品号",
+  会员充值: "订阅/会员",
+  成品号: "成品账号",
   "共享/镜像": "共享/镜像",
   "卡密/CDK": "卡密/CDK",
   "邮箱/账号": "邮箱/账号",
@@ -127,8 +127,8 @@ export function PriceExplorer({ data }: { data: DashboardData }) {
         </div>
       </header>
 
-      <section className="sticky top-[72px] z-20 hidden bg-[#f2f4f4]/90 px-5 py-6 backdrop-blur-xl sm:px-8 md:block">
-        <div className="mx-auto max-w-[1500px] space-y-6">
+      <section className="sticky top-[72px] z-20 hidden bg-[#f2f4f4]/90 px-5 py-5 backdrop-blur-xl sm:px-8 md:block">
+        <div className="mx-auto max-w-[1500px]">
           <div className="flex gap-3 overflow-x-auto pb-1">
             {["全部", ...platformOptions].map((item) => (
               <TabPill
@@ -138,23 +138,6 @@ export function PriceExplorer({ data }: { data: DashboardData }) {
                 label={item}
                 onClick={() => setPlatform(item)}
               />
-            ))}
-          </div>
-
-          <div className="flex gap-7 overflow-x-auto text-sm">
-            {["全部", ...productTypeOptions].map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setProductType(item)}
-                className={`shrink-0 border-b-2 pb-2 transition ${
-                  productType === item
-                    ? "border-[#5e5e5e] font-semibold text-[#2d3435]"
-                    : "border-transparent text-[#5a6061] hover:text-[#2d3435]"
-                }`}
-              >
-                {productTypeLabels[item] || item}
-              </button>
             ))}
           </div>
         </div>
@@ -169,7 +152,7 @@ export function PriceExplorer({ data }: { data: DashboardData }) {
 
         <div className="mb-9 space-y-5">
           <div>
-            <h1 className="font-serif text-4xl font-bold tracking-normal text-[#202829] md:text-5xl">
+            <h1 className="font-serif text-3xl font-semibold tracking-normal text-[#202829] md:text-4xl">
               {title}
             </h1>
             <div className="mt-4 flex flex-wrap items-center gap-3 text-[0.72rem] font-medium text-[#5a6061]">
@@ -179,15 +162,6 @@ export function PriceExplorer({ data }: { data: DashboardData }) {
               <span className="h-1 w-1 rounded-full bg-[#adb3b4]" />
               <span>主价格为最低价，缺货会明显标注</span>
             </div>
-            {activeFilters.length ? (
-              <div className="mt-3 flex flex-wrap gap-2 md:hidden">
-                {activeFilters.map((filter) => (
-                  <span key={filter} className="rounded-full bg-[#e4e9ea] px-3 py-1 text-xs font-medium text-[#2d3435]">
-                    {filter}
-                  </span>
-                ))}
-              </div>
-            ) : null}
             <button
               type="button"
               onClick={() => window.dispatchEvent(new Event("open-submission-floater"))}
@@ -199,7 +173,7 @@ export function PriceExplorer({ data }: { data: DashboardData }) {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <label className="flex h-11 min-w-0 items-center gap-2 rounded-full bg-white px-4 shadow-[0_16px_45px_rgba(45,52,53,0.05)] ring-1 ring-[#adb3b4]/15 sm:w-[320px]">
+            <label className="flex h-11 min-w-0 items-center gap-2 rounded-full bg-white px-4 shadow-[0_16px_45px_rgba(45,52,53,0.05)] ring-1 ring-[#adb3b4]/15 sm:w-[360px]">
               <Search size={16} className="shrink-0 text-[#5a6061]" />
               <input
                 value={query}
@@ -252,6 +226,18 @@ export function PriceExplorer({ data }: { data: DashboardData }) {
               提交渠道
             </button>
           </div>
+          {activeFilters.length ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {activeFilters.map((filter) => (
+                <span
+                  key={filter}
+                  className="rounded-full bg-[#e4e9ea] px-3 py-1 text-xs font-medium text-[#2d3435]"
+                >
+                  {filter}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         {filtersOpen ? (
@@ -264,7 +250,7 @@ export function PriceExplorer({ data }: { data: DashboardData }) {
                 options={["全部", ...platformOptions]}
               />
             </div>
-            <div className="sm:col-span-2 md:hidden">
+            <div className="sm:col-span-2 lg:col-span-1">
               <FilterSelect
                 label="商品类型"
                 value={productType}
@@ -720,7 +706,7 @@ function buildActiveFilters({
 
 function buildTitle(platform: string, productType: string): string {
   const platformName = platform === "全部" ? "全平台" : platform;
-  const typeName = productType === "全部" ? "标准商品" : productType;
+  const typeName = productType === "全部" ? "标准商品" : productTypeLabels[productType] || productType;
   return `${platformName} ${typeName}报价`;
 }
 
