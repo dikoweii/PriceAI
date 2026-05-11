@@ -93,6 +93,72 @@ export async function runPriceCollection(options = {}) {
   };
 }
 
+export async function probeSource(options = {}) {
+  const sourceUrl = options.sourceUrl || options.entryUrl || options.url;
+  if (!sourceUrl) throw new Error("Missing sourceUrl.");
+
+  const sourceName = options.sourceName || options.name || sourceNameFromUrl(sourceUrl);
+  const source = {
+    id: options.sourceId || options.id || sourceIdFrom(sourceName, sourceUrl),
+    name: sourceName,
+    base_url: options.baseUrl || deriveBaseUrl(sourceUrl),
+    entry_url: sourceUrl,
+    collection_method: "http",
+  };
+  const target = buildTarget(source, Array.isArray(options.rawOffers) ? options.rawOffers : []);
+  const startedAt = Date.now();
+  const limit = Math.max(1, Math.min(Number(options.limit || 12), 50));
+
+  if (!target.kind) {
+    return {
+      sourceId: target.sourceId,
+      sourceName: target.sourceName,
+      sourceUrl: target.sourceUrl,
+      baseUrl: target.baseUrl,
+      kind: null,
+      status: "unsupported",
+      offerCount: 0,
+      offers: [],
+      ms: Date.now() - startedAt,
+      finishedAt: new Date().toISOString(),
+      message: "当前链接暂未识别到自动采集器，可先用浏览器采集或人工补录。",
+    };
+  }
+
+  try {
+    const offers = dedupeOffers(await collectTarget(target));
+    return {
+      sourceId: target.sourceId,
+      sourceName: target.sourceName,
+      sourceUrl: target.sourceUrl,
+      baseUrl: target.baseUrl,
+      kind: target.kind,
+      status: offers.length ? "success" : "empty",
+      offerCount: offers.length,
+      offers: offers.slice(0, limit),
+      ms: Date.now() - startedAt,
+      finishedAt: new Date().toISOString(),
+      message: offers.length
+        ? `试采集成功，识别到 ${offers.length} 条报价。`
+        : "已连接到采集器，但没有识别到可比价商品。",
+    };
+  } catch (error) {
+    return {
+      sourceId: target.sourceId,
+      sourceName: target.sourceName,
+      sourceUrl: target.sourceUrl,
+      baseUrl: target.baseUrl,
+      kind: target.kind,
+      status: "failed",
+      offerCount: 0,
+      offers: [],
+      ms: Date.now() - startedAt,
+      finishedAt: new Date().toISOString(),
+      message: errorMessage(error),
+    };
+  }
+}
+
 export { loadTargets, selectTargets };
 
 if (isCli()) {
@@ -655,7 +721,7 @@ async function fetchJson(url) {
   });
 
   if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`);
-  return response.json();
+  return parseJsonResponse(response, url);
 }
 
 async function fetchText(url) {
@@ -683,7 +749,19 @@ async function postJson(url, body, referer) {
   });
 
   if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`);
-  return response.json();
+  return parseJsonResponse(response, url);
+}
+
+async function parseJsonResponse(response, url) {
+  const text = await response.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (/<html|<script|captcha|verify|challenge|验证|风控|安全/i.test(text)) {
+      throw new Error(`${url} 返回验证或风控页面，需要改用本机浏览器采集。`);
+    }
+    throw new Error(`${url} 返回了非 JSON 内容，暂时无法自动采集。`);
+  }
 }
 
 function defaultHeaders(url) {
@@ -782,6 +860,27 @@ function normalizeHostname(value) {
   } catch {
     return String(value || "").replace(/^https?:\/\//, "").split("/")[0].replace(/^www\./, "").toLowerCase();
   }
+}
+
+function sourceNameFromUrl(value) {
+  try {
+    const url = new URL(value);
+    const token = shopTokenFromUrl(value);
+    if (token && url.hostname === "pay.ldxp.cn") return `LDXP / ${token}`;
+    if (token && url.hostname === "pay.qxvx.cn") return `QXVX / ${token}`;
+    return url.hostname.replace(/^www\./, "");
+  } catch {
+    return "Submitted Source";
+  }
+}
+
+function sourceIdFrom(name, value) {
+  const text = `${name || ""}-${normalizeHostname(value) || ""}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return text || `source-${Date.now()}`;
 }
 
 function shopTokenFromUrl(value) {

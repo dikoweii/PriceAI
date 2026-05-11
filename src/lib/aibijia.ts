@@ -184,7 +184,7 @@ export async function importAibijiaProducts() {
     finished_at: finishedAt,
     success_count: offerRows.length,
     failure_count: 0,
-    message: `导入 ${offerRows.length} 条 Aibijia 渠道参考报价，默认归档，不参与前台比价。`,
+    message: `导入 ${offerRows.length} 条 Aibijia 渠道归档报价，默认隐藏，不参与前台比价。`,
     details: {
       product_count: payload.products?.length || 0,
       site_updated_at: payload.site?.updated_at || null,
@@ -288,7 +288,7 @@ function resolveAibijiaChannel(offer: RawOffer, existingSources: Source[]): Chan
   const collectionMethod = existing?.collectionMethod || inferCollectionMethod(hostname, platformName);
   const notes = mergeNotes(
     existing?.notes || null,
-    `Aibijia 已发现该渠道；导入报价按参考价处理，原站采集方式为 ${collectionMethod}。`,
+    `Aibijia 已发现该渠道；导入报价默认隐藏，原站采集方式为 ${collectionMethod}。`,
   );
 
   return {

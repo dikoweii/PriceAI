@@ -59,7 +59,7 @@ export async function POST(request: Request) {
           effective_status: "failed",
           freshness_status: "failed",
           last_failed_at: finishedAt,
-          failure_reason: payload.message || "本次采集失败，旧报价需要复核。",
+          failure_reason: payload.message || "本次采集失败，旧报价暂不更新。",
         })
         .eq("source_id", source.id);
     }

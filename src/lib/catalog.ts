@@ -1,5 +1,4 @@
 import type { CanonicalProduct, ProductGroup, RawOffer } from "./types";
-import { computeOfferTrust, isTrustedAvailable } from "./freshness";
 
 export const platformOptions = [
   "ChatGPT",
@@ -292,16 +291,11 @@ export function buildProductGroups(
         offers: [],
         offerCount: 0,
         inStockCount: 0,
-        lowStockCount: 0,
         outOfStockCount: 0,
-        referenceCount: 0,
-        staleCount: 0,
         lowestPrice: null,
         lowestPriceLabel: "暂无价格",
         lowestPriceTone: "muted",
         lowestOffer: null,
-        trustedLowestPrice: null,
-        trustedLowestOffer: null,
         latestSeenAt: null,
         anomalyFlags: [],
       } satisfies ProductGroup);
@@ -313,27 +307,11 @@ export function buildProductGroups(
   for (const product of map.values()) {
     product.offers.sort(compareOffers);
     product.offerCount = product.offers.length;
-    product.inStockCount = product.offers.filter(
-      (offer) => isTrustedAvailable(offer) && offer.status === "in_stock",
-    ).length;
-    product.lowStockCount = product.offers.filter(
-      (offer) => isTrustedAvailable(offer) && offer.status === "low_stock",
-    ).length;
+    product.inStockCount = product.offers.filter(isAvailable).length;
     product.outOfStockCount = product.offers.filter((offer) => offer.status === "out_of_stock").length;
-    product.referenceCount = product.offers.filter((offer) => {
-      const trust = computeOfferTrust(offer);
-      return trust.effectiveStatus === "low_confidence";
-    }).length;
-    product.staleCount = product.offers.filter((offer) => {
-      const trust = computeOfferTrust(offer);
-      return trust.effectiveStatus === "stale" || trust.freshnessStatus === "expired";
-    }).length;
-    const trustedLowestOffer = product.offers.find((offer) => isAvailable(offer) && hasUsablePrice(offer)) ?? null;
     const displayLowestOffer = getDisplayLowestOffer(product.offers);
     const priceMeta = getOfferPriceMeta(displayLowestOffer);
 
-    product.trustedLowestOffer = trustedLowestOffer;
-    product.trustedLowestPrice = trustedLowestOffer?.price ?? null;
     product.lowestOffer = displayLowestOffer;
     product.lowestPrice = displayLowestOffer?.price ?? null;
     product.lowestPriceLabel = priceMeta.label;
@@ -353,26 +331,23 @@ export function buildProductGroups(
 }
 
 export function compareOffers(a: RawOffer, b: RawOffer): number {
-  const trustA = computeOfferTrust(a);
-  const trustB = computeOfferTrust(b);
-  const availableDelta = Number(trustB.trustedForLowestPrice) - Number(trustA.trustedForLowestPrice);
+  const availableDelta = Number(isAvailable(b)) - Number(isAvailable(a));
   if (availableDelta !== 0) return availableDelta;
 
   const outOfStockDelta = Number(a.status === "out_of_stock") - Number(b.status === "out_of_stock");
   if (outOfStockDelta !== 0) return outOfStockDelta;
 
-  const priorityDelta = trustB.sourcePriority - trustA.sourcePriority;
-  if (priorityDelta !== 0) return priorityDelta;
-
   const priceDelta =
     (a.price ?? Number.MAX_SAFE_INTEGER) - (b.price ?? Number.MAX_SAFE_INTEGER);
   if (priceDelta !== 0) return priceDelta;
 
-  return (trustB.verifiedAt || "").localeCompare(trustA.verifiedAt || "");
+  const seenB = b.verifiedAt || b.lastSeenAt || b.capturedAt || b.sourceUpdatedAt || "";
+  const seenA = a.verifiedAt || a.lastSeenAt || a.capturedAt || a.sourceUpdatedAt || "";
+  return seenB.localeCompare(seenA);
 }
 
 export function isAvailable(offer: RawOffer): boolean {
-  return isTrustedAvailable(offer);
+  return offer.status !== "out_of_stock";
 }
 
 export function getOfferPriceMeta(
@@ -380,23 +355,11 @@ export function getOfferPriceMeta(
 ): { label: string; tone: ProductGroup["lowestPriceTone"] } {
   if (!offer || !hasUsablePrice(offer)) return { label: "暂无价格", tone: "muted" };
 
-  const trust = computeOfferTrust(offer);
-
-  if (offer.status === "out_of_stock" || trust.effectiveStatus === "unavailable") {
-    return { label: "缺货价", tone: "danger" };
+  if (offer.status === "out_of_stock") {
+    return { label: "缺货", tone: "danger" };
   }
 
-  if (trust.trustedForLowestPrice) {
-    return { label: trust.sourceStatus === "low_stock" ? "少量有货最低" : "原站确认最低", tone: "good" };
-  }
-
-  if (trust.effectiveStatus === "failed") return { label: "复核失败价", tone: "muted" };
-  if (trust.effectiveStatus === "stale" || trust.freshnessStatus === "expired") {
-    return { label: "历史最低", tone: "warn" };
-  }
-  if (trust.freshnessStatus === "aging") return { label: "需复核最低", tone: "warn" };
-
-  return { label: "参考最低", tone: "info" };
+  return { label: "有货", tone: "good" };
 }
 
 function getDisplayLowestOffer(offers: RawOffer[]): RawOffer | null {
@@ -417,21 +380,10 @@ function hasUsablePrice(offer: RawOffer): offer is RawOffer & { price: number } 
 
 export function collectOfferFlags(offer: RawOffer): string[] {
   const flags = new Set<string>();
-  const trust = computeOfferTrust(offer);
 
   if (offer.status === "out_of_stock") flags.add("缺货");
-  if (trust.effectiveStatus === "low_confidence") flags.add("参考价");
-  if (trust.effectiveStatus === "failed") flags.add("复核失败");
-  if (trust.effectiveStatus === "stale" || trust.freshnessStatus === "expired") flags.add("已过期");
-  if (trust.freshnessStatus === "aging") flags.add("需复核");
   if (offer.tags.some((tag) => tag.includes("无质保"))) flags.add("无质保");
   if (offer.price !== null && offer.price > 0 && offer.price < 1) flags.add("超低价");
-
-  const seenAt = trust.verifiedAt || offer.capturedAt || offer.sourceUpdatedAt;
-  if (seenAt) {
-    const ageHours = (Date.now() - new Date(seenAt).getTime()) / 36e5;
-    if (Number.isFinite(ageHours) && ageHours > 24) flags.add("超过24小时未更新");
-  }
 
   return Array.from(flags);
 }
@@ -443,10 +395,8 @@ function collectProductFlags(product: ProductGroup): string[] {
   }
 
   if (product.lowestPrice !== null && product.lowestPrice < 1) flags.add("含异常低价");
-  if (product.lowestOffer?.status === "out_of_stock") flags.add("当前最低价来自缺货报价");
-  if (product.inStockCount === 0 && product.lowStockCount === 0) flags.add("暂无原站确认有货");
-  if (product.referenceCount > 0) flags.add(`${product.referenceCount} 条参考价未原站确认`);
-  if (product.staleCount > 0) flags.add(`${product.staleCount} 条报价已过期`);
+  if (product.lowestOffer?.status === "out_of_stock") flags.add("最低价来自缺货商品");
+  if (product.inStockCount === 0) flags.add("全部缺货");
 
   return Array.from(flags);
 }

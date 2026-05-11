@@ -282,6 +282,22 @@ async function ensurePublicHost(hostname: string): Promise<void> {
 
 const MAX_FETCH_BYTES = 256 * 1024;
 const FETCH_TIMEOUT_MS = 5000;
+const KAMI_HOSTS = new Set([
+  "aisou.pro",
+  "caowo.store",
+  "faka.redeemgpt.com",
+  "feifei.shop",
+  "talkai.cyou",
+  "yh-mo.xyz",
+  "zzshu.com",
+]);
+const DUJIAO_HOSTS = new Set([
+  "burstpro-ai.online",
+  "card.kxandyou.com",
+  "shop.aitonse.com",
+  "shop.auto-subscribe.com",
+  "ultra.makelove.cloud",
+]);
 
 export async function parseSubmissionMetadata(rawUrl: string): Promise<{
   url: string;
@@ -302,6 +318,7 @@ export async function parseSubmissionMetadata(rawUrl: string): Promise<{
   }
 
   meta.domain = parsed.host;
+  Object.assign(meta, analyzeSubmissionUrl(parsed, null));
 
   try {
     await ensurePublicHost(parsed.hostname);
@@ -362,6 +379,7 @@ export async function parseSubmissionMetadata(rawUrl: string): Promise<{
       meta.canonical_product_id = canonical.id;
       meta.platform = canonical.platform;
       meta.product_type = canonical.productType;
+      Object.assign(meta, analyzeSubmissionUrl(parsed, parsedTitle));
     }
   } catch (error) {
     meta.parse_error = error instanceof Error ? error.message : String(error);
@@ -370,6 +388,74 @@ export async function parseSubmissionMetadata(rawUrl: string): Promise<{
   }
 
   return { url: parsed.toString(), parsedTitle, parsedMeta: meta };
+}
+
+function analyzeSubmissionUrl(parsed: URL, parsedTitle: string | null): Record<string, unknown> {
+  const host = normalizeHostname(parsed.hostname);
+  const baseUrl = `${parsed.protocol}//${parsed.host}`;
+  const shopToken = getShopToken(parsed.pathname);
+  const collectorKind = inferCollectorKind(host);
+  const collectionMethod: CollectionMethod = collectorKind === "browser" ? "browser" : "http";
+  const suggestedName = inferSubmittedSourceName(host, parsedTitle, shopToken);
+
+  return {
+    normalized_url: parsed.toString(),
+    base_url: baseUrl,
+    shop_token: shopToken,
+    suggested_source_name: suggestedName,
+    suggested_source_id: inferSubmittedSourceId(host, suggestedName, shopToken),
+    suggested_collection_method: collectionMethod,
+    suggested_collector_kind: collectorKind,
+    support_status: collectorKind === "browser" ? "needs_browser_probe" : "supported",
+    support_reason:
+      collectorKind === "browser"
+        ? "暂未识别到公开接口，建议先用浏览器采集或手动补录。"
+        : `已识别 ${collectorKind} 采集器，可通过自动采集拉取商品。`,
+  };
+}
+
+function inferCollectorKind(host: string): string {
+  if (KAMI_HOSTS.has(host)) return "kami";
+  if (DUJIAO_HOSTS.has(host)) return "dujiao";
+  if (host === "pay.qxvx.cn" || host === "pay.ldxp.cn") return "shopApi";
+  if (host === "upgrade.xiaoheiwan.com") return "xiaoheiwan";
+  if (host === "aifk.opensora.de") return "opensoraHtml";
+  if (host === "makerich.club") return "makerichHtml";
+  if (host === "bei-bei.shop") return "beibeiHtml";
+  if (host.includes("burstpro")) return "dujiao";
+  return "browser";
+}
+
+function inferSubmittedSourceName(host: string, parsedTitle: string | null, shopToken: string | null): string {
+  if (host === "pay.ldxp.cn" && shopToken) return `LDXP / ${shopToken}`;
+  if (host === "pay.qxvx.cn" && shopToken) return `QXVX / ${shopToken}`;
+  if (host === "shop.auto-subscribe.com") return "Auto Subscribe";
+  if (host === "aifk.opensora.de") return "AUTO FK";
+  if (host === "aisou.pro") return "Aisou智充";
+  if (host === "caowo.store") return "GPT专卖-cw";
+  if (host === "makerich.club") return "AI创富俱乐部";
+  if (parsedTitle) return parsedTitle;
+  return host;
+}
+
+function inferSubmittedSourceId(host: string, sourceName: string, shopToken: string | null): string {
+  if (host === "pay.ldxp.cn") return `ldxp-${slugify(shopToken || sourceName) || stableId(host, sourceName)}`;
+  if (host === "pay.qxvx.cn") return `qxvx-${slugify(shopToken || sourceName) || stableId(host, sourceName)}`;
+  if (host === "shop.auto-subscribe.com") return "auto-subscribe";
+  if (host === "aifk.opensora.de") return "opensora-aifk";
+  if (host === "aisou.pro") return "aisou-pro";
+  if (host === "caowo.store") return "caowo-store";
+  if (host === "makerich.club") return "makerich-club";
+  return slugify(sourceName) || slugify(host) || stableId(host, sourceName);
+}
+
+function getShopToken(pathname: string): string | null {
+  const match = pathname.match(/\/shop\/([^/?#]+)/i);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
+}
+
+function normalizeHostname(value: string): string {
+  return value.toLowerCase().replace(/^www\./, "");
 }
 
 export async function createSubmission(input: {
@@ -430,7 +516,7 @@ export async function createSubmission(input: {
     parsedTitle = parsed.parsedTitle;
     parsedMeta = parsed.parsedMeta;
   } catch (error) {
-    parsedMeta = { parse_error: error instanceof Error ? error.message : String(error) };
+    parsedMeta = buildFallbackSubmissionMeta(normalizedUrl, error);
   }
 
   const id = stableId("submission", normalizedUrl, ip || "", Date.now().toString());
@@ -448,6 +534,19 @@ export async function createSubmission(input: {
   if (error) throw error;
 
   return { id, status: "pending" };
+}
+
+function buildFallbackSubmissionMeta(url: string, error: unknown): Record<string, unknown> {
+  try {
+    const parsed = new URL(url);
+    return {
+      domain: parsed.host,
+      ...analyzeSubmissionUrl(parsed, null),
+      parse_error: error instanceof Error ? error.message : String(error),
+    };
+  } catch {
+    return { parse_error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 export async function listSubmissions(status: SubmissionStatus = "pending"): Promise<ChannelSubmission[]> {
@@ -482,17 +581,21 @@ export async function approveSubmission(
 
   const submission = mapSubmissionRow(row);
   const baseUrl = deriveBaseUrl(submission.url);
+  const suggestedMethod = getSuggestedCollectionMethod(submission.parsedMeta);
+  const suggestedId = getSuggestedSourceId(submission.parsedMeta);
   const fallbackName =
     overrides.name?.trim() ||
     submission.name ||
+    getSuggestedSourceName(submission.parsedMeta) ||
     submission.parsedTitle ||
     (baseUrl ? new URL(baseUrl).host : submission.url);
 
   const source = await upsertSource({
+    id: suggestedId,
     name: fallbackName,
     entryUrl: submission.url,
     baseUrl,
-    collectionMethod: overrides.collectionMethod || "manual",
+    collectionMethod: overrides.collectionMethod || suggestedMethod || "browser",
     enabled: true,
     notes: submission.notes ? `用户提交：${submission.notes}` : "由用户提交渠道入口审核通过。",
   });
@@ -535,4 +638,23 @@ export async function rejectSubmission(id: string, note?: string | null): Promis
   if (!data) throw new Error("提交记录不存在或已被处理。");
 
   return mapSubmissionRow(data);
+}
+
+function getSuggestedSourceName(meta: Record<string, unknown>): string | null {
+  return typeof meta.suggested_source_name === "string" && meta.suggested_source_name.trim()
+    ? meta.suggested_source_name.trim()
+    : null;
+}
+
+function getSuggestedSourceId(meta: Record<string, unknown>): string | null {
+  return typeof meta.suggested_source_id === "string" && meta.suggested_source_id.trim()
+    ? meta.suggested_source_id.trim()
+    : null;
+}
+
+function getSuggestedCollectionMethod(meta: Record<string, unknown>): CollectionMethod | null {
+  const value = typeof meta.suggested_collection_method === "string" ? meta.suggested_collection_method : "";
+  return value === "aibijia_json" || value === "browser" || value === "http" || value === "manual"
+    ? value
+    : null;
 }

@@ -66,7 +66,7 @@ GET /api/cron/collect-prices
 Authorization: Bearer your-cron-secret
 ```
 
-Vercel 部署会读取 `vercel.json`，默认每小时触发一次 `/api/cron/collect-prices`。云服务器也可以用系统 cron 调用同一个接口：
+Vercel 部署会读取 `vercel.json`。当前按 Hobby 账号限制配置为每天触发一次 `/api/cron/collect-prices`；如果升级到 Vercel Pro，可以把 `vercel.json` 改回每小时。云服务器也可以用系统 cron 调用同一个接口：
 
 ```bash
 0 * * * * curl -fsS -H "Authorization: Bearer your-cron-secret" https://your-domain.com/api/cron/collect-prices

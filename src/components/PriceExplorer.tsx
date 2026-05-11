@@ -2,27 +2,20 @@
 
 import {
   ArrowUpDown,
-  Bot,
   CheckCircle2,
   ChevronRight,
   Database,
   Filter,
-  Gem,
-  Globe2,
-  KeyRound,
   Layers3,
-  Mail,
   PackageCheck,
   Search,
-  Sparkles,
   Store,
-  TerminalSquare,
 } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
+import { BrandIcon } from "@/components/BrandIcon";
 import { collectOfferFlags, platformOptions, productTypeOptions } from "@/lib/catalog";
-import { computeOfferTrust } from "@/lib/freshness";
 import type { DashboardData, ProductGroup } from "@/lib/types";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 
@@ -74,7 +67,8 @@ export function PriceExplorer({ data }: { data: DashboardData }) {
       if (normalizedQuery && !haystack.includes(normalizedQuery)) return false;
       if (platform !== "全部" && product.platform !== platform) return false;
       if (productType !== "全部" && product.productType !== productType) return false;
-      if (stock === "available" && product.inStockCount + product.lowStockCount === 0) return false;
+      if (stock === "available" && product.inStockCount === 0) return false;
+      if (stock === "out_of_stock" && product.outOfStockCount === 0) return false;
 
       if (min !== null || max !== null) {
         const hasPrice = product.offers.some((offer) => {
@@ -97,18 +91,15 @@ export function PriceExplorer({ data }: { data: DashboardData }) {
         return (a.lowestPrice ?? Number.MAX_SAFE_INTEGER) - (b.lowestPrice ?? Number.MAX_SAFE_INTEGER);
       }
 
-      const stockDelta = Number(b.inStockCount + b.lowStockCount > 0) - Number(a.inStockCount + a.lowStockCount > 0);
+      const stockDelta = Number(b.inStockCount > 0) - Number(a.inStockCount > 0);
       if (stockDelta !== 0) return stockDelta;
 
       return (a.lowestPrice ?? Number.MAX_SAFE_INTEGER) - (b.lowestPrice ?? Number.MAX_SAFE_INTEGER);
     });
   }, [data.products, maxPrice, minPrice, platform, productType, query, sort, stock]);
 
-  const totalAvailable = data.products.reduce(
-    (sum, product) => sum + product.inStockCount + product.lowStockCount,
-    0,
-  );
-  const totalReference = data.products.reduce((sum, product) => sum + product.referenceCount, 0);
+  const totalAvailable = data.products.reduce((sum, product) => sum + product.inStockCount, 0);
+  const totalOutOfStock = data.products.reduce((sum, product) => sum + product.outOfStockCount, 0);
   const title = buildTitle(platform, productType);
 
   return (
@@ -121,8 +112,8 @@ export function PriceExplorer({ data }: { data: DashboardData }) {
           <div className="hidden items-center gap-3 lg:flex">
             <Metric label="标准商品" value={data.products.length.toString()} icon={<PackageCheck size={15} />} />
             <Metric label="报价" value={data.rawOffers.length.toString()} icon={<Database size={15} />} />
-            <Metric label="原站确认" value={totalAvailable.toString()} icon={<CheckCircle2 size={15} />} />
-            <Metric label="参考价" value={totalReference.toString()} icon={<Store size={15} />} />
+            <Metric label="有货" value={totalAvailable.toString()} icon={<CheckCircle2 size={15} />} />
+            <Metric label="缺货" value={totalOutOfStock.toString()} icon={<Store size={15} />} />
           </div>
         </div>
       </header>
@@ -177,7 +168,7 @@ export function PriceExplorer({ data }: { data: DashboardData }) {
               <span className="h-1 w-1 rounded-full bg-[#adb3b4]" />
               <span>{products.length} groups</span>
               <span className="h-1 w-1 rounded-full bg-[#adb3b4]" />
-              <span>主价格为最低抓取价，缺货/过期会明显标注</span>
+              <span>主价格为最低价，缺货会明显标注</span>
             </div>
           </div>
 
@@ -223,7 +214,8 @@ export function PriceExplorer({ data }: { data: DashboardData }) {
               onChange={setStock}
               options={[
                 ["all", "全部报价"],
-                ["available", "原站确认有货"],
+                ["available", "有货"],
+                ["out_of_stock", "缺货"],
               ]}
             />
             <PriceInput label="最低价" value={minPrice} onChange={setMinPrice} />
@@ -268,8 +260,7 @@ export function PriceExplorer({ data }: { data: DashboardData }) {
 }
 
 function ProductCard({ product }: { product: ProductGroup }) {
-  const previewOffer = product.lowestOffer || product.trustedLowestOffer || product.offers[0];
-  const trust = previewOffer ? computeOfferTrust(previewOffer) : null;
+  const previewOffer = product.lowestOffer || product.offers[0];
   const flags = previewOffer ? collectOfferFlags(previewOffer).slice(0, 2) : [];
 
   return (
@@ -286,7 +277,6 @@ function ProductCard({ product }: { product: ProductGroup }) {
         </div>
         <StatusPill
           label={product.lowestPriceLabel}
-          trusted={Boolean(trust?.trustedForLowestPrice)}
           tone={product.lowestPriceTone}
         />
       </div>
@@ -304,20 +294,12 @@ function ProductCard({ product }: { product: ProductGroup }) {
           <span className="text-4xl font-bold tracking-normal">
             {formatCurrency(product.lowestPrice, previewOffer?.currency)}
           </span>
-          {product.trustedLowestPrice !== null && product.lowestOffer?.id !== product.trustedLowestOffer?.id ? (
-            <span className="mb-1 text-xs opacity-75">
-              原站确认 {formatCurrency(product.trustedLowestPrice, product.trustedLowestOffer?.currency)}
-            </span>
-          ) : null}
         </div>
       </div>
 
       <div className="mt-5 flex flex-wrap gap-2 text-xs">
-        <CountBadge tone="good">确认 {product.inStockCount}</CountBadge>
-        <CountBadge tone="warn">少量 {product.lowStockCount}</CountBadge>
-        <CountBadge tone="info">参考 {product.referenceCount}</CountBadge>
+        <CountBadge tone="good">有货 {product.inStockCount}</CountBadge>
         <CountBadge tone="danger">缺货 {product.outOfStockCount}</CountBadge>
-        <CountBadge tone="muted">过期 {product.staleCount}</CountBadge>
         <CountBadge tone="muted">渠道 {product.offerCount}</CountBadge>
       </div>
 
@@ -447,11 +429,9 @@ function PriceInput({
 
 function StatusPill({
   label,
-  trusted,
   tone,
 }: {
   label: string;
-  trusted: boolean;
   tone?: ProductGroup["lowestPriceTone"];
 }) {
   const toneClass = tone
@@ -467,12 +447,7 @@ function StatusPill({
   return (
     <span
       className={`shrink-0 rounded-full px-3 py-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.14em] ${
-        toneClass ||
-        (trusted
-          ? "bg-[#e8f3ec] text-[#2f7a4b]"
-          : label === "缺货" || label === "已过期"
-            ? "bg-[#e4e9ea] text-[#5a6061]"
-            : "bg-[#eef3f8] text-[#47657a]")
+        toneClass || "bg-[#eef3f8] text-[#47657a]"
       }`}
     >
       {label}
@@ -517,13 +492,7 @@ function buildTitle(platform: string, productType: string): string {
 function platformIcon(platform: string): ReactNode {
   const className = "h-[18px] w-[18px]";
 
-  if (platform === "ChatGPT") return <Bot className={`${className} text-[#1f9f58]`} />;
-  if (platform === "Claude") return <Sparkles className={`${className} text-[#d87528]`} />;
-  if (platform === "Gemini") return <Gem className={`${className} text-[#2f6dff]`} />;
-  if (platform === "Grok") return <TerminalSquare className={`${className} text-[#202829]`} />;
-  if (platform === "Google") return <Globe2 className={`${className} text-[#486bd9]`} />;
-  if (platform === "API/CDK") return <KeyRound className={`${className} text-[#6d55c8]`} />;
-  if (platform === "邮箱") return <Mail className={`${className} text-[#7d5c44]`} />;
+  if (platform !== "全部" && platform !== "其他") return <BrandIcon platform={platform} className={className} />;
   if (platform === "其他") return <Layers3 className={`${className} text-[#5a6061]`} />;
   return <Layers3 className={`${className} text-[#5a6061]`} />;
 }

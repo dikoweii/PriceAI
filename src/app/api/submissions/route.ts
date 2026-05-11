@@ -15,6 +15,29 @@ function getClientIp(request: Request): string | null {
   return request.headers.get("x-real-ip");
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message?: unknown }).message || "提交失败。");
+  }
+  return "提交失败。";
+}
+
+function getErrorStatus(error: unknown, message: string): number {
+  if (error instanceof z.ZodError) return 400;
+  if (message.includes("刚刚被提交过")) return 409;
+  if (message.includes("提交过于频繁")) return 429;
+  if (
+    message.includes("URL 格式") ||
+    message.includes("仅支持") ||
+    message.includes("不允许") ||
+    message.includes("无法解析")
+  ) {
+    return 400;
+  }
+  return 500;
+}
+
 export async function POST(request: Request) {
   try {
     const json = await request.json();
@@ -38,9 +61,13 @@ export async function POST(request: Request) {
     }
     return Response.json({ ok: true, id: result.id });
   } catch (error) {
-    return Response.json(
-      { ok: false, message: error instanceof Error ? error.message : "提交失败。" },
-      { status: error instanceof z.ZodError ? 400 : 500 },
-    );
+    const message = getErrorMessage(error);
+    const status = getErrorStatus(error, message);
+
+    if (status >= 500) {
+      console.error("[submissions] failed", error);
+    }
+
+    return Response.json({ ok: false, message }, { status });
   }
 }

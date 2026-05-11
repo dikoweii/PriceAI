@@ -68,16 +68,11 @@ export type ProductGroup = CanonicalProduct & {
   offers: RawOffer[];
   offerCount: number;
   inStockCount: number;
-  lowStockCount: number;
   outOfStockCount: number;
-  referenceCount: number;
-  staleCount: number;
   lowestPrice: number | null;
   lowestPriceLabel: string;
   lowestPriceTone: "good" | "warn" | "info" | "muted" | "danger";
   lowestOffer: RawOffer | null;
-  trustedLowestPrice: number | null;
-  trustedLowestOffer: RawOffer | null;
   latestSeenAt: string | null;
   anomalyFlags: string[];
 };
