@@ -40,16 +40,20 @@ export async function runPriceCollection(options = {}) {
     logger?.log(`\n==> ${target.sourceName} [${target.kind}]`);
 
     try {
-      const offers = dedupeOffers(await collectTarget(target));
+      const collection = await collectTargetWithRetries(target, options, logger);
+      const offers = collection.offers;
       const status = offers.length ? "success" : "failed";
       const message = offers.length
-        ? `HTTP collector found ${offers.length} offers.`
-        : "HTTP collector found no offers.";
+        ? `HTTP collector found ${offers.length} offers after ${collection.attempts.length} attempt(s).`
+        : `HTTP collector found no offers after ${collection.attempts.length} attempt(s).`;
 
       if (logger) printOfferPreview(offers);
 
       if (options.post) {
-        const posted = await postCrawlLog(target, offers, status, message, options);
+        const posted = await postCrawlLog(target, offers, status, message, options, {
+          attempts: collection.attempts,
+          maxAttempts: collection.maxAttempts,
+        });
         logger?.log(`Posted ${posted.successCount} offers.`);
       }
 
@@ -59,14 +63,19 @@ export async function runPriceCollection(options = {}) {
         kind: target.kind,
         status,
         offers: offers.length,
+        attempts: collection.attempts.length,
         ms: Date.now() - startedAt,
       });
     } catch (error) {
       const message = errorMessage(error);
+      const attempts = Array.isArray(error?.attempts) ? error.attempts : [];
       logger?.error(`Failed: ${message}`);
 
       if (options.post) {
-        await postCrawlLog(target, [], "failed", message, options).catch((postError) => {
+        await postCrawlLog(target, [], "failed", message, options, {
+          attempts,
+          maxAttempts: maxAttemptsFor(options),
+        }).catch((postError) => {
           logger?.error(`Failed to post failure log: ${errorMessage(postError)}`);
         });
       }
@@ -77,6 +86,7 @@ export async function runPriceCollection(options = {}) {
         kind: target.kind,
         status: "failed",
         offers: 0,
+        attempts: attempts.length || maxAttemptsFor(options),
         ms: Date.now() - startedAt,
         message,
       });
@@ -195,6 +205,52 @@ async function collectTarget(target) {
   if (target.kind === "beibeiHtml") return collectBeibeiHtml(target);
 
   throw new Error(`Unsupported collector kind: ${target.kind}`);
+}
+
+async function collectTargetWithRetries(target, options = {}, logger = null) {
+  const maxAttempts = maxAttemptsFor(options);
+  const attempts = [];
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const startedAt = Date.now();
+
+    try {
+      const offers = dedupeOffers(await collectTarget(target));
+      const message = offers.length ? `采集到 ${offers.length} 条报价。` : "采集结果为空。";
+      attempts.push({
+        attempt,
+        status: offers.length ? "success" : "empty",
+        offers: offers.length,
+        ms: Date.now() - startedAt,
+        message,
+      });
+
+      if (offers.length) return { offers, attempts, maxAttempts };
+
+      lastError = new Error(message);
+    } catch (error) {
+      const message = errorMessage(error);
+      attempts.push({
+        attempt,
+        status: "failed",
+        offers: 0,
+        ms: Date.now() - startedAt,
+        message,
+      });
+      lastError = error;
+    }
+
+    if (attempt < maxAttempts) {
+      const waitMs = retryDelayMs(attempt);
+      logger?.log(`Retrying ${target.sourceName} in ${waitMs}ms (${attempt + 1}/${maxAttempts})...`);
+      await delay(waitMs);
+    }
+  }
+
+  const error = new Error(lastError ? errorMessage(lastError) : "采集失败。");
+  error.attempts = attempts;
+  throw error;
 }
 
 async function collectKamiLike(target) {
@@ -627,7 +683,7 @@ function makeOffer(target, input) {
   };
 }
 
-async function postCrawlLog(target, offers, status, message, options = {}) {
+async function postCrawlLog(target, offers, status, message, options = {}, details = {}) {
   const endpoint = options.endpoint || "http://localhost:3000";
   const password =
     options.password ||
@@ -650,6 +706,7 @@ async function postCrawlLog(target, offers, status, message, options = {}) {
       offers,
       details: {
         collector: target.kind,
+        ...details,
       },
     }),
   });
@@ -673,6 +730,20 @@ function selectTargets(targets, options) {
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(query)),
   );
+}
+
+function maxAttemptsFor(options = {}) {
+  const value = Number(options.retries || options.retry || 3);
+  if (!Number.isFinite(value)) return 3;
+  return Math.max(1, Math.min(Math.trunc(value), 5));
+}
+
+function retryDelayMs(attempt) {
+  return Math.min(1_000 * 2 ** (attempt - 1), 5_000);
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function printTargetList(targets) {

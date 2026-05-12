@@ -20,9 +20,20 @@ create table if not exists sources (
   collection_method text not null default 'manual',
   enabled boolean not null default true,
   notes text,
+  health_status text not null default 'unknown',
+  last_checked_at timestamptz,
+  last_success_at timestamptz,
+  consecutive_failures integer not null default 0,
+  last_error text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table sources add column if not exists health_status text not null default 'unknown';
+alter table sources add column if not exists last_checked_at timestamptz;
+alter table sources add column if not exists last_success_at timestamptz;
+alter table sources add column if not exists consecutive_failures integer not null default 0;
+alter table sources add column if not exists last_error text;
 
 create table if not exists raw_offers (
   id text primary key,
@@ -87,32 +98,16 @@ set
   end,
   effective_status = case
     when status = 'out_of_stock' then 'unavailable'
-    when coalesce(verified_at, last_seen_at, captured_at, source_updated_at) < now() - interval '30 minutes' then 'stale'
-    when exists (
-      select 1 from sources
-      where sources.id = raw_offers.source_id
-        and sources.collection_method = 'aibijia_json'
-    ) then 'low_confidence'
-    when coalesce(verified_at, last_seen_at, captured_at, source_updated_at) < now() - interval '10 minutes' then 'low_confidence'
     else 'available'
   end,
   freshness_status = case
-    when coalesce(verified_at, last_seen_at, captured_at, source_updated_at) < now() - interval '2 hours' then 'expired'
-    when coalesce(verified_at, last_seen_at, captured_at, source_updated_at) < now() - interval '30 minutes' then 'stale'
-    when coalesce(verified_at, last_seen_at, captured_at, source_updated_at) < now() - interval '10 minutes' then 'aging'
+    when coalesce(expires_at, verified_at + interval '24 hours', last_seen_at + interval '24 hours', captured_at + interval '24 hours') < now() then 'expired'
     else 'fresh'
   end,
   expires_at = coalesce(
     expires_at,
     coalesce(verified_at, last_seen_at, captured_at, source_updated_at) +
-      case
-        when exists (
-          select 1 from sources
-          where sources.id = raw_offers.source_id
-            and sources.collection_method = 'aibijia_json'
-        ) then interval '30 minutes'
-        else interval '2 hours'
-      end
+      interval '24 hours'
   )
 where true;
 
@@ -147,6 +142,8 @@ create index if not exists raw_offers_effective_status_idx on raw_offers(effecti
 create index if not exists raw_offers_verified_at_idx on raw_offers(verified_at desc);
 create index if not exists raw_offers_expires_at_idx on raw_offers(expires_at);
 create index if not exists raw_offers_hidden_idx on raw_offers(hidden);
+create index if not exists sources_health_status_idx on sources(health_status);
+create index if not exists sources_last_checked_at_idx on sources(last_checked_at desc);
 create index if not exists crawl_runs_started_at_idx on crawl_runs(started_at desc);
 
 create or replace function set_updated_at()

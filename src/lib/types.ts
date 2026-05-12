@@ -21,6 +21,11 @@ export type Source = {
   collectionMethod: CollectionMethod;
   enabled: boolean;
   notes?: string | null;
+  healthStatus?: "unknown" | "healthy" | "retrying" | "failing" | "partial" | null;
+  lastCheckedAt?: string | null;
+  lastSuccessAt?: string | null;
+  consecutiveFailures?: number | null;
+  lastError?: string | null;
   updatedAt?: string | null;
 };
 

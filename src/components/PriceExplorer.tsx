@@ -30,8 +30,6 @@ const productTypeLabels: Record<string, string> = {
   全部: "全部",
   会员充值: "订阅/会员",
   成品号: "成品账号",
-  "共享/镜像": "共享/镜像",
-  "卡密/CDK": "卡密/CDK",
   "邮箱/账号": "邮箱/账号",
   API额度: "API额度",
   其他: "其他",

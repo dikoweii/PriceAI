@@ -211,7 +211,10 @@ export function flattenAibijiaPayload(payload: AibijiaPayload): RawOffer[] {
 
       const sourceName = offer.platform_name || "Aibijia";
       const sourceStoreName = offer.source_store_name || sourceName;
-      const canonical = classifyOffer(offer.source_title);
+      const canonical = classifyOffer(offer.source_title, {
+        tags: offer.display_tags || [],
+        categorySlug: product.slug || null,
+      });
       const status = normalizeAibijiaStatus(offer.status);
       const sourceUpdatedAt = offer.updated_at || payload.site?.updated_at || capturedAt;
       const trustFields = freshnessFields({

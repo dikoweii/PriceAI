@@ -1,4 +1,10 @@
-import { getAdminPasswordFromRequest, upsertRawOffers, upsertSource } from "@/lib/admin";
+import {
+  getAdminPasswordFromRequest,
+  rawOfferInputId,
+  recordSourceCollectionResult,
+  upsertRawOffers,
+  upsertSource,
+} from "@/lib/admin";
 import { requireAdminPassword } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { stableId } from "@/lib/utils";
@@ -51,18 +57,16 @@ export async function POST(request: Request) {
     }));
     const successCount = await upsertRawOffers(offers, { collectionMethod: payload.mode });
     const finishedAt = new Date().toISOString();
+    const seenOfferIds = offers.map(rawOfferInputId);
 
-    if (!successCount && payload.status === "failed") {
-      await supabase
-        .from("raw_offers")
-        .update({
-          effective_status: "failed",
-          freshness_status: "failed",
-          last_failed_at: finishedAt,
-          failure_reason: payload.message || "本次采集失败，旧报价暂不更新。",
-        })
-        .eq("source_id", source.id);
-    }
+    await recordSourceCollectionResult({
+      sourceId: source.id,
+      status: payload.status,
+      checkedAt: finishedAt,
+      message: payload.message || null,
+      seenOfferIds,
+      fullSnapshot: payload.status === "success",
+    });
 
     const { error } = await supabase.from("crawl_runs").insert({
       id: stableId(payload.sourceName, payload.sourceUrl, startedAt),

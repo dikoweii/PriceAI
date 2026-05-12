@@ -95,9 +95,9 @@ export async function upsertRawOffer(input: OfferInput & { sourceId?: string | n
   const tags = parseTags(input.tags || "");
   const status = normalizeStatus(input.status || "");
   const trustFields = freshnessFields({ method: "manual", status, verifiedAt: now });
-  const canonical = classifyOffer(input.sourceTitle);
+  const canonical = classifyOffer(input.sourceTitle, { tags });
   const offer: RawOffer = {
-    id: stableId(input.sourceName, input.sourceStoreName, input.sourceTitle, input.url),
+    id: rawOfferInputId(input),
     sourceId: sourceId || source.id,
     sourceName: input.sourceName,
     sourceStoreName: input.sourceStoreName || input.sourceName,
@@ -146,14 +146,15 @@ export async function upsertRawOffers(
       collectionMethod,
       notes: collectionMethod === "http" ? "由自动价格采集脚本维护。" : "由半自动浏览器采集助手创建。",
     });
-    const canonical = classifyOffer(offer.sourceTitle);
     const now = new Date().toISOString();
     const status = normalizeStatus(offer.status || "");
+    const tags = parseTags(offer.tags || "");
+    const canonical = classifyOffer(offer.sourceTitle, { tags });
     const trustFields = freshnessFields({ method: collectionMethod, status, verifiedAt: now });
 
     rows.push(
       toRawOfferRow({
-        id: stableId(offer.sourceName, offer.sourceStoreName, offer.sourceTitle, offer.url),
+        id: rawOfferInputId(offer),
         sourceId: source.id,
         sourceName: offer.sourceName,
         sourceStoreName: offer.sourceStoreName || offer.sourceName,
@@ -162,7 +163,7 @@ export async function upsertRawOffers(
         currency: offer.currency || "CNY",
         status,
         url: offer.url,
-        tags: parseTags(offer.tags || ""),
+        tags,
         stockCount: offer.stockCount ?? null,
         hidden: false,
         canonicalProductId: canonical.id,
@@ -186,6 +187,162 @@ export async function upsertRawOffers(
   if (error) throw error;
 
   return rows.length;
+}
+
+export function rawOfferInputId(offer: Pick<OfferInput, "sourceName" | "sourceStoreName" | "sourceTitle" | "url">): string {
+  return stableId(offer.sourceName, offer.sourceStoreName, offer.sourceTitle, offer.url);
+}
+
+export async function recordSourceCollectionResult(input: {
+  sourceId: string;
+  status: "success" | "partial" | "failed";
+  checkedAt: string;
+  message?: string | null;
+  seenOfferIds?: string[];
+  fullSnapshot?: boolean;
+}) {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) throw new Error("Supabase 尚未配置，无法记录来源采集状态。");
+
+  const { data: existing } = await supabase
+    .from("sources")
+    .select("consecutive_failures,last_success_at")
+    .eq("id", input.sourceId)
+    .maybeSingle();
+
+  const previousFailures = Number(existing?.consecutive_failures || 0);
+  const consecutiveFailures = input.status === "failed" ? previousFailures + 1 : 0;
+  const healthStatus =
+    input.status === "success"
+      ? "healthy"
+      : input.status === "partial"
+        ? "partial"
+        : consecutiveFailures >= 3
+          ? "failing"
+          : "retrying";
+
+  const { error: sourceError } = await supabase
+    .from("sources")
+    .update({
+      health_status: healthStatus,
+      last_checked_at: input.checkedAt,
+      last_success_at: input.status === "failed" ? existing?.last_success_at || null : input.checkedAt,
+      consecutive_failures: consecutiveFailures,
+      last_error: input.status === "failed" ? input.message || "采集失败，等待重试。" : null,
+      updated_at: input.checkedAt,
+    })
+    .eq("id", input.sourceId);
+
+  if (sourceError) throw sourceError;
+
+  if (input.status === "failed") {
+    await recordOfferCollectionFailure(input.sourceId, input.checkedAt, input.message || null, consecutiveFailures);
+    return;
+  }
+
+  await clearOfferCollectionFailure(input.sourceId);
+
+  if (input.status === "success" && input.fullSnapshot && input.seenOfferIds?.length) {
+    await markMissingOffersOutOfStock(input.sourceId, input.seenOfferIds, input.checkedAt);
+  }
+}
+
+async function recordOfferCollectionFailure(
+  sourceId: string,
+  failedAt: string,
+  message: string | null,
+  consecutiveFailures: number,
+) {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return;
+
+  const failureReason = message || "本次采集失败，旧报价暂不更新。";
+  const { error: markError } = await supabase
+    .from("raw_offers")
+    .update({
+      last_failed_at: failedAt,
+      failure_reason: failureReason,
+      updated_at: failedAt,
+    })
+    .eq("source_id", sourceId);
+
+  if (markError) throw markError;
+
+  const staleBefore = new Date(new Date(failedAt).getTime() - 24 * 60 * 60 * 1000).toISOString();
+  if (consecutiveFailures < 3) return;
+
+  const { error: expireError } = await supabase
+    .from("raw_offers")
+    .update({
+      effective_status: "unavailable",
+      freshness_status: "expired",
+      last_failed_at: failedAt,
+      failure_reason: `连续采集失败 ${consecutiveFailures} 次：${failureReason}`,
+      updated_at: failedAt,
+    })
+    .eq("source_id", sourceId)
+    .or(`verified_at.is.null,verified_at.lt.${staleBefore}`);
+
+  if (expireError) throw expireError;
+}
+
+async function clearOfferCollectionFailure(sourceId: string) {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return;
+
+  const { error } = await supabase
+    .from("raw_offers")
+    .update({
+      last_failed_at: null,
+      failure_reason: null,
+    })
+    .eq("source_id", sourceId);
+
+  if (error) throw error;
+}
+
+async function markMissingOffersOutOfStock(sourceId: string, seenOfferIds: string[], checkedAt: string) {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return;
+
+  const seen = new Set(seenOfferIds);
+  const { data, error } = await supabase
+    .from("raw_offers")
+    .select("id")
+    .eq("source_id", sourceId)
+    .eq("hidden", false);
+
+  if (error) throw error;
+
+  const missingIds = (data || [])
+    .map((row) => String(row.id))
+    .filter((id) => !seen.has(id));
+
+  for (const ids of chunks(missingIds, 100)) {
+    const { error: updateError } = await supabase
+      .from("raw_offers")
+      .update({
+        status: "out_of_stock",
+        source_status: "out_of_stock",
+        effective_status: "unavailable",
+        freshness_status: "fresh",
+        verified_at: checkedAt,
+        last_failed_at: null,
+        failure_reason: null,
+        updated_at: checkedAt,
+      })
+      .in("id", ids);
+
+    if (updateError) throw updateError;
+  }
+}
+
+function chunks<T>(items: T[], size: number): T[][] {
+  const output: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    output.push(items.slice(index, index + size));
+  }
+  return output;
 }
 
 export function toRawOfferRow(offer: RawOffer) {
@@ -259,6 +416,14 @@ function mapSourceRow(row: Record<string, unknown>): Source {
     collectionMethod: String(row.collection_method || "http") as CollectionMethod,
     enabled: Boolean(row.enabled),
     notes: row.notes ? String(row.notes) : null,
+    healthStatus: row.health_status ? String(row.health_status) as Source["healthStatus"] : null,
+    lastCheckedAt: row.last_checked_at ? String(row.last_checked_at) : null,
+    lastSuccessAt: row.last_success_at ? String(row.last_success_at) : null,
+    consecutiveFailures:
+      row.consecutive_failures === null || row.consecutive_failures === undefined
+        ? null
+        : Number(row.consecutive_failures),
+    lastError: row.last_error ? String(row.last_error) : null,
     updatedAt: row.updated_at ? String(row.updated_at) : null,
   };
 }

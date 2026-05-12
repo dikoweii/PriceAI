@@ -8,6 +8,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppLogo } from "@/components/AppLogo";
 import { BrandIcon } from "@/components/BrandIcon";
+import { isAvailable } from "@/lib/catalog";
 import { getProductGroup } from "@/lib/data";
 import type { RawOffer } from "@/lib/types";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
@@ -17,8 +18,6 @@ export const dynamic = "force-dynamic";
 const productTypeLabels: Record<string, string> = {
   会员充值: "订阅/会员",
   成品号: "成品账号",
-  "共享/镜像": "共享/镜像",
-  "卡密/CDK": "卡密/CDK",
   "邮箱/账号": "邮箱/账号",
   API额度: "API额度",
   其他: "其他",
@@ -248,7 +247,7 @@ function platformIcon(platform: string) {
 }
 
 function isOfferAvailable(offer: RawOffer): boolean {
-  return offer.status !== "out_of_stock";
+  return isAvailable(offer);
 }
 
 function offerTimestamp(offer: RawOffer): string | null | undefined {

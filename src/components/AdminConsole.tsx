@@ -173,6 +173,22 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
     }
   }
 
+  async function reclassifyOffers() {
+    setLoadingAction("reclassify-offers");
+    setMessage({ type: "info", text: "正在按最新标准商品规则重建分类..." });
+    const result = await request("/api/admin/reclassify", password, {});
+    setLoadingAction(null);
+
+    if (result.ok) {
+      setMessage({
+        type: "success",
+        text: `重分类完成：同步 ${result.productCount || 0} 个标准商品，更新 ${result.updatedCount || 0} 条报价。刷新页面后可查看结果。`,
+      });
+    } else {
+      setMessage({ type: "error", text: result.message || "重分类失败。" });
+    }
+  }
+
   async function collectPrices() {
     setLoadingAction("collect-prices");
     setMessage({ type: "info", text: "正在采集所有卡网最新价格，请稍候..." });
@@ -522,12 +538,29 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
                       </button>
                     </div>
 
-                    <div className="mt-4 flex flex-col gap-3 border-t border-stone-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-stone-900">立即采集所有卡网</p>
-                        <p className="mt-1 text-sm text-stone-600">
-                          手动触发跟 Vercel Cron 相同的采集流程（KAMI / DUJIAO 全量）。
-                        </p>
+	                    <div className="mt-4 flex flex-col gap-3 border-t border-stone-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+	                      <div>
+	                        <p className="text-sm font-medium text-stone-900">重建标准商品分类</p>
+	                        <p className="mt-1 text-sm text-stone-600">
+	                          按最新粗粒度规则重新归类已有报价，修正 API、邮箱、Gemini、Team 等误分。
+	                        </p>
+	                      </div>
+	                      <button
+	                        onClick={reclassifyOffers}
+	                        disabled={loadingAction === "reclassify-offers"}
+	                        className="inline-flex h-10 items-center justify-center gap-2 border border-stone-300 bg-white px-4 text-sm font-medium text-stone-900 hover:bg-stone-50 disabled:opacity-60"
+	                      >
+	                        {loadingAction === "reclassify-offers" ? <Loader2 size={16} className="animate-spin" /> : <Database size={16} />}
+	                        重建分类
+	                      </button>
+	                    </div>
+
+	                    <div className="mt-4 flex flex-col gap-3 border-t border-stone-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+	                      <div>
+	                        <p className="text-sm font-medium text-stone-900">立即采集所有卡网</p>
+	                        <p className="mt-1 text-sm text-stone-600">
+	                          手动触发跟 Vercel Cron 相同的采集流程；失败会自动重试，并记录来源健康状态。
+	                        </p>
                       </div>
                       <button
                         onClick={collectPrices}
@@ -742,11 +775,12 @@ function SourceTable({
 }) {
   return (
     <div className="overflow-hidden border border-stone-200">
-      <div className="hidden grid-cols-[1fr_80px_130px_110px] gap-3 border-b border-stone-200 bg-stone-50 px-3 py-2 text-xs font-semibold text-stone-500 md:grid">
+      <div className="hidden grid-cols-[1fr_70px_120px_110px_150px] gap-3 border-b border-stone-200 bg-stone-50 px-3 py-2 text-xs font-semibold text-stone-500 md:grid">
         <span>来源</span>
         <span>报价</span>
         <span>采集方式</span>
-        <span>状态</span>
+        <span>健康</span>
+        <span>最近采集</span>
       </div>
       <div className="divide-y divide-stone-200">
         {groups.map((group) => (
@@ -755,7 +789,7 @@ function SourceTable({
               {group.label} · {group.sources.length} 个
             </div>
             {group.sources.map((source) => (
-              <div key={source.id} className="grid gap-2 px-3 py-3 md:grid-cols-[1fr_80px_130px_110px] md:items-center">
+              <div key={source.id} className="grid gap-2 px-3 py-3 md:grid-cols-[1fr_70px_120px_110px_150px] md:items-center">
                 <div className="min-w-0">
                   <p className="font-medium text-stone-900">{source.name}</p>
                   <a
@@ -766,17 +800,20 @@ function SourceTable({
                   >
                     {source.entryUrl}
                   </a>
+                  {source.lastError ? (
+                    <p className="mt-1 line-clamp-1 text-xs text-red-700">{source.lastError}</p>
+                  ) : null}
                 </div>
                 <span className="text-sm font-medium text-stone-700">
                   <span className="mr-1 text-xs text-stone-400 md:hidden">报价</span>
                   {offerCountBySource.get(source.id) || 0}
                 </span>
                 <span className="text-sm text-stone-600">{collectionMethodLabel(source.collectionMethod)}</span>
-                {source.enabled ? (
-                  <span className="w-fit bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-900">启用</span>
-                ) : (
-                  <span className="w-fit bg-stone-100 px-2 py-1 text-xs font-medium text-stone-700">停用</span>
-                )}
+                <span className={sourceHealthClass(source)}>{sourceHealthLabel(source)}</span>
+                <span className="text-xs leading-5 text-stone-500">
+                  {source.lastSuccessAt ? `确认 ${formatRelativeTime(source.lastSuccessAt)}` : source.lastCheckedAt ? "未确认成功" : "未采集"}
+                  {source.lastCheckedAt ? <span className="block">检查 {formatRelativeTime(source.lastCheckedAt)}</span> : null}
+                </span>
               </div>
             ))}
           </div>
@@ -1237,6 +1274,25 @@ function crawlStatusClass(value: CrawlRun["status"]): string {
   if (value === "success") return "bg-emerald-50 px-2 py-1 text-xs text-emerald-900";
   if (value === "partial") return "bg-amber-50 px-2 py-1 text-xs text-amber-900";
   return "bg-red-50 px-2 py-1 text-xs text-red-800";
+}
+
+function sourceHealthLabel(source: Source): string {
+  if (!source.enabled) return "停用";
+  if (source.healthStatus === "healthy") return "正常";
+  if (source.healthStatus === "partial") return "部分成功";
+  if (source.healthStatus === "retrying") return `重试 ${source.consecutiveFailures || 1}`;
+  if (source.healthStatus === "failing") return `异常 ${source.consecutiveFailures || 0}`;
+  return "启用";
+}
+
+function sourceHealthClass(source: Source): string {
+  if (!source.enabled) return "w-fit bg-stone-100 px-2 py-1 text-xs font-medium text-stone-700";
+  if (source.healthStatus === "healthy") return "w-fit bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-900";
+  if (source.healthStatus === "partial" || source.healthStatus === "retrying") {
+    return "w-fit bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900";
+  }
+  if (source.healthStatus === "failing") return "w-fit bg-red-50 px-2 py-1 text-xs font-medium text-red-800";
+  return "w-fit bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-900";
 }
 
 function offerStatusClass(status: OfferStatus): string {

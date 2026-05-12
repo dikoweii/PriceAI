@@ -1,0 +1,119 @@
+import { canonicalCatalog, classifyOffer } from "@/lib/catalog";
+import { getAdminPasswordFromRequest } from "@/lib/admin";
+import { requireAdminPassword } from "@/lib/env";
+import { getSupabaseServerClient } from "@/lib/supabase";
+
+export async function POST(request: Request) {
+  try {
+    requireAdminPassword(getAdminPasswordFromRequest(request));
+
+    const supabase = getSupabaseServerClient();
+    if (!supabase) throw new Error("Supabase 尚未配置，无法重建分类。");
+
+    const now = new Date().toISOString();
+    const productRows = canonicalCatalog.map((product) => ({
+      id: product.id,
+      slug: product.slug,
+      display_name: product.displayName,
+      platform: product.platform,
+      product_type: product.productType,
+      spec: product.spec,
+      summary: product.summary,
+      aliases: product.aliases,
+      is_active: true,
+      updated_at: now,
+    }));
+
+    const { error: productError } = await supabase.from("canonical_products").upsert(productRows);
+    if (productError) throw productError;
+
+    const { data: existingProducts, error: existingError } = await supabase
+      .from("canonical_products")
+      .select("id");
+    if (existingError) throw existingError;
+
+    const activeIds = new Set(canonicalCatalog.map((product) => product.id));
+    const inactiveIds = (existingProducts || [])
+      .map((row) => String(row.id))
+      .filter((id) => !activeIds.has(id));
+
+    for (const ids of chunks(inactiveIds, 100)) {
+      const { error } = await supabase
+        .from("canonical_products")
+        .update({ is_active: false, updated_at: now })
+        .in("id", ids);
+      if (error) throw error;
+    }
+
+    const { data: offers, error: offerError } = await supabase
+      .from("raw_offers")
+      .select("id,source_title,tags,category_slug");
+    if (offerError) throw offerError;
+
+    let updatedCount = 0;
+    const distribution = new Map<string, number>();
+
+    const groupedOfferIds = new Map<string, { canonicalProductId: string; categorySlug: string; ids: string[] }>();
+
+    for (const row of offers || []) {
+      const canonical = classifyOffer(String(row.source_title || ""), {
+        tags: Array.isArray(row.tags) ? row.tags.map(String) : [],
+        categorySlug: row.category_slug ? String(row.category_slug) : null,
+      });
+      distribution.set(canonical.id, (distribution.get(canonical.id) || 0) + 1);
+      const key = `${canonical.id}\u0000${canonical.platform}`;
+      const group = groupedOfferIds.get(key) || {
+        canonicalProductId: canonical.id,
+        categorySlug: canonical.platform,
+        ids: [],
+      };
+      group.ids.push(String(row.id));
+      groupedOfferIds.set(key, group);
+    }
+
+    for (const group of groupedOfferIds.values()) {
+      for (const ids of chunks(group.ids, 100)) {
+        const { error } = await supabase
+          .from("raw_offers")
+          .update({
+            canonical_product_id: group.canonicalProductId,
+            category_slug: group.categorySlug,
+            updated_at: now,
+          })
+          .in("id", ids);
+
+        if (error) throw error;
+        updatedCount += ids.length;
+      }
+    }
+
+    return Response.json({
+      ok: true,
+      productCount: canonicalCatalog.length,
+      updatedCount,
+      inactiveProductCount: inactiveIds.length,
+      distribution: Object.fromEntries(distribution.entries()),
+    });
+  } catch (error) {
+    return Response.json(
+      { ok: false, message: errorMessage(error) },
+      { status: 500 },
+    );
+  }
+}
+
+function chunks<T>(items: T[], size: number): T[][] {
+  const output: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    output.push(items.slice(index, index + size));
+  }
+  return output;
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object" && "message" in error) {
+    return String((error as { message?: unknown }).message || "重建分类失败。");
+  }
+  return "重建分类失败。";
+}

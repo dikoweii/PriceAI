@@ -113,6 +113,14 @@ export function mapSource(row: Record<string, unknown>): Source {
     collectionMethod: String(row.collection_method || "manual") as Source["collectionMethod"],
     enabled: Boolean(row.enabled),
     notes: row.notes ? String(row.notes) : null,
+    healthStatus: row.health_status ? String(row.health_status) as Source["healthStatus"] : null,
+    lastCheckedAt: row.last_checked_at ? String(row.last_checked_at) : null,
+    lastSuccessAt: row.last_success_at ? String(row.last_success_at) : null,
+    consecutiveFailures:
+      row.consecutive_failures === null || row.consecutive_failures === undefined
+        ? null
+        : Number(row.consecutive_failures),
+    lastError: row.last_error ? String(row.last_error) : null,
     updatedAt: row.updated_at ? String(row.updated_at) : null,
   };
 }
