@@ -309,7 +309,7 @@ export function PriceExplorer({ data }: { data: DashboardData }) {
         ) : (
           <div className="rounded-lg bg-white px-6 py-16 text-center shadow-[0_20px_60px_rgba(45,52,53,0.05)] ring-1 ring-[#adb3b4]/15">
             <p className="font-serif text-2xl font-semibold text-[#202829]">没有符合条件的报价</p>
-            <p className="mt-3 text-sm text-[#5a6061]">放宽筛选条件，或者在后台补录新的来源与商品。</p>
+            <p className="mt-3 text-sm text-[#5a6061]">放宽筛选条件，或者提交新的可采集渠道。</p>
           </div>
         )}
       </main>

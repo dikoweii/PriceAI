@@ -96,7 +96,7 @@ npm run collect:browser -- --url https://aisou.pro/ --password your-admin-passwo
 - `--endpoint`：默认 `http://localhost:3000`。
 - `--browser`：指定浏览器路径。
 
-无法公开读取的站点不要绕过限制，使用后台手动补录关键报价。
+无法公开读取的站点不要绕过限制。提交审核时如果试采集失败，先进入采集器待办，后续新增解析脚本后再重新试采集。
 
 ## 首批来源
 

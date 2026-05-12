@@ -16,6 +16,20 @@ import type {
 } from "./types";
 import { normalizeStatus, parseTags, slugify, stableId } from "./utils";
 
+type SubmissionProbeResult = {
+  sourceId?: string;
+  sourceName?: string;
+  sourceUrl?: string;
+  baseUrl?: string;
+  kind?: string | null;
+  status?: string;
+  offerCount?: number;
+  offers?: Array<Record<string, unknown>>;
+  ms?: number;
+  message?: string;
+  finishedAt?: string;
+};
+
 export function getAdminPasswordFromRequest(request: Request): string | null {
   const header = request.headers.get("x-admin-password");
   if (header) return header;
@@ -74,7 +88,7 @@ export async function upsertRawOffer(input: OfferInput & { sourceId?: string | n
     name: input.sourceName,
     entryUrl: input.sourceUrl,
     collectionMethod: "manual",
-    notes: "由后台手动补录或采集助手自动创建。",
+    notes: "由后台调试补录或采集助手自动创建。",
   });
 
   const now = new Date().toISOString();
@@ -233,6 +247,19 @@ function mapSubmissionRow(row: Record<string, unknown>): ChannelSubmission {
     submitterIp: row.submitter_ip ? String(row.submitter_ip) : null,
     createdAt: String(row.created_at || new Date().toISOString()),
     reviewedAt: row.reviewed_at ? String(row.reviewed_at) : null,
+  };
+}
+
+function mapSourceRow(row: Record<string, unknown>): Source {
+  return {
+    id: String(row.id),
+    name: String(row.name || ""),
+    baseUrl: row.base_url ? String(row.base_url) : null,
+    entryUrl: String(row.entry_url || row.base_url || ""),
+    collectionMethod: String(row.collection_method || "http") as CollectionMethod,
+    enabled: Boolean(row.enabled),
+    notes: row.notes ? String(row.notes) : null,
+    updatedAt: row.updated_at ? String(row.updated_at) : null,
   };
 }
 
@@ -409,7 +436,7 @@ function analyzeSubmissionUrl(parsed: URL, parsedTitle: string | null): Record<s
     support_status: collectorKind === "browser" ? "needs_browser_probe" : "supported",
     support_reason:
       collectorKind === "browser"
-        ? "暂未识别到公开接口，建议先用浏览器采集或手动补录。"
+        ? "暂未识别到公开接口，建议先试采集；失败后加入采集器待办。"
         : `已识别 ${collectorKind} 采集器，可通过自动采集拉取商品。`,
   };
 }
@@ -563,10 +590,94 @@ export async function listSubmissions(status: SubmissionStatus = "pending"): Pro
   return (data || []).map(mapSubmissionRow);
 }
 
+export async function recordSubmissionProbeResult(
+  id: string,
+  result: SubmissionProbeResult,
+): Promise<ChannelSubmission> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) throw new Error("Supabase 尚未配置。");
+
+  const { data: row, error } = await supabase
+    .from("channel_submissions")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!row) throw new Error("提交记录不存在。");
+  if (row.status !== "pending") throw new Error("该提交已被处理。");
+
+  const submission = mapSubmissionRow(row);
+  const checkedAt = new Date().toISOString();
+  const success = result.status === "success" && Number(result.offerCount || 0) > 0;
+  const nextMeta = {
+    ...submission.parsedMeta,
+    probe_result: result,
+    probe_checked_at: checkedAt,
+    review_stage: success ? "ready_to_approve" : "needs_collector_review",
+    support_status: success ? "probe_success" : "needs_collector",
+    support_reason: success
+      ? `试采集成功，识别到 ${Number(result.offerCount || 0)} 条报价。`
+      : result.message || "当前采集器暂不支持，需要加入采集器待办后补解析脚本。",
+  };
+
+  const { data: updated, error: updateError } = await supabase
+    .from("channel_submissions")
+    .update({ parsed_meta: nextMeta })
+    .eq("id", id)
+    .eq("status", "pending")
+    .select("*")
+    .maybeSingle();
+  if (updateError) throw updateError;
+  if (!updated) throw new Error("提交记录不存在或已被处理。");
+
+  return mapSubmissionRow(updated);
+}
+
+export async function markSubmissionCollectorTodo(id: string, note?: string | null): Promise<ChannelSubmission> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) throw new Error("Supabase 尚未配置。");
+
+  const { data: row, error } = await supabase
+    .from("channel_submissions")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  if (!row) throw new Error("提交记录不存在。");
+  if (row.status !== "pending") throw new Error("该提交已被处理。");
+
+  const submission = mapSubmissionRow(row);
+  const todoAt = new Date().toISOString();
+  const reason = note?.trim() || "当前没有可用自动采集器，需要补解析脚本后重新试采集。";
+  const nextMeta = {
+    ...submission.parsedMeta,
+    review_stage: "collector_todo",
+    collector_todo_at: todoAt,
+    collector_todo_reason: reason,
+    support_status: "needs_collector",
+    support_reason: reason,
+  };
+
+  const { data: updated, error: updateError } = await supabase
+    .from("channel_submissions")
+    .update({
+      parsed_meta: nextMeta,
+      reviewer_note: reason,
+    })
+    .eq("id", id)
+    .eq("status", "pending")
+    .select("*")
+    .maybeSingle();
+  if (updateError) throw updateError;
+  if (!updated) throw new Error("提交记录不存在或已被处理。");
+
+  return mapSubmissionRow(updated);
+}
+
 export async function approveSubmission(
   id: string,
   overrides: { name?: string | null; collectionMethod?: CollectionMethod } = {},
-): Promise<{ submission: ChannelSubmission; source: Source }> {
+): Promise<{ submission: ChannelSubmission; source: Source; importedOfferCount: number; matchedExistingSource: boolean }> {
   const supabase = getSupabaseServerClient();
   if (!supabase) throw new Error("Supabase 尚未配置。");
 
@@ -583,6 +694,7 @@ export async function approveSubmission(
   const baseUrl = deriveBaseUrl(submission.url);
   const suggestedMethod = getSuggestedCollectionMethod(submission.parsedMeta);
   const suggestedId = getSuggestedSourceId(submission.parsedMeta);
+  const existingSource = suggestedId ? await getSourceById(suggestedId) : null;
   const fallbackName =
     overrides.name?.trim() ||
     submission.name ||
@@ -590,22 +702,63 @@ export async function approveSubmission(
     submission.parsedTitle ||
     (baseUrl ? new URL(baseUrl).host : submission.url);
 
-  const source = await upsertSource({
-    id: suggestedId,
-    name: fallbackName,
-    entryUrl: submission.url,
-    baseUrl,
-    collectionMethod: overrides.collectionMethod || suggestedMethod || "browser",
-    enabled: true,
-    notes: submission.notes ? `用户提交：${submission.notes}` : "由用户提交渠道入口审核通过。",
-  });
+  const source =
+    existingSource ||
+    await upsertSource({
+      id: suggestedId,
+      name: fallbackName,
+      entryUrl: submission.url,
+      baseUrl,
+      collectionMethod: overrides.collectionMethod || suggestedMethod || "http",
+      enabled: true,
+      notes: submission.notes ? `用户提交：${submission.notes}` : "由用户提交渠道入口审核通过。",
+    });
+
+  const importedOffers = getProbeOffersForImport(submission.parsedMeta, source, submission.url);
+  if (!existingSource && !importedOffers.length) {
+    throw new Error("请先试采集成功；当前不支持自动采集的渠道请加入采集器待办。");
+  }
+
+  const importedOfferCount = importedOffers.length
+    ? await upsertRawOffers(importedOffers, { collectionMethod: source.collectionMethod === "manual" ? "http" : source.collectionMethod })
+    : 0;
 
   const reviewedAt = new Date().toISOString();
+  if (importedOfferCount) {
+    const { error: logError } = await supabase.from("crawl_runs").insert({
+      id: stableId(source.name, submission.url, reviewedAt),
+      source_id: source.id,
+      source_name: source.name,
+      mode: source.collectionMethod === "manual" ? "http" : source.collectionMethod,
+      status: "success",
+      started_at: reviewedAt,
+      finished_at: reviewedAt,
+      success_count: importedOfferCount,
+      failure_count: 0,
+      message: `审核通过时从试采集结果入库 ${importedOfferCount} 条报价。`,
+      details: {
+        review_action: "submission_approve",
+        submission_id: submission.id,
+        matched_existing_source: Boolean(existingSource),
+      },
+    });
+    if (logError) throw logError;
+  }
+
+  const nextMeta = {
+    ...submission.parsedMeta,
+    review_stage: "approved",
+    approved_at: reviewedAt,
+    approved_source_id: source.id,
+    approved_offer_count: importedOfferCount,
+    matched_existing_source: Boolean(existingSource),
+  };
   const { data: updated, error: updateError } = await supabase
     .from("channel_submissions")
     .update({
       status: "approved",
       approved_source_id: source.id,
+      parsed_meta: nextMeta,
       reviewed_at: reviewedAt,
     })
     .eq("id", id)
@@ -616,6 +769,8 @@ export async function approveSubmission(
   return {
     submission: updated ? mapSubmissionRow(updated) : { ...submission, status: "approved", approvedSourceId: source.id, reviewedAt },
     source,
+    importedOfferCount,
+    matchedExistingSource: Boolean(existingSource),
   };
 }
 
@@ -640,6 +795,58 @@ export async function rejectSubmission(id: string, note?: string | null): Promis
   return mapSubmissionRow(data);
 }
 
+async function getSourceById(id: string): Promise<Source | null> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("sources")
+    .select("id,name,base_url,entry_url,collection_method,enabled,notes,updated_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? mapSourceRow(data) : null;
+}
+
+function getProbeOffersForImport(
+  meta: Record<string, unknown>,
+  source: Source,
+  fallbackUrl: string,
+): OfferInput[] {
+  const probe = getStoredProbeResult(meta);
+  if (!probe || probe.status !== "success" || !Array.isArray(probe.offers)) return [];
+
+  const offers: OfferInput[] = [];
+  for (const offer of probe.offers) {
+    const sourceTitle = stringValue(offer.sourceTitle) || stringValue(offer.title);
+    const url = stringValue(offer.url) || fallbackUrl;
+    if (!sourceTitle || !url) continue;
+
+    offers.push({
+      sourceId: source.id,
+      sourceName: source.name,
+      sourceUrl: source.entryUrl || fallbackUrl,
+      sourceStoreName: stringValue(offer.sourceStoreName) || source.name,
+      sourceTitle,
+      price: numberValue(offer.price),
+      currency: stringValue(offer.currency) || "CNY",
+      status: normalizeStatus(stringValue(offer.status)),
+      url,
+      tags: Array.isArray(offer.tags) ? offer.tags.map(String).filter(Boolean) : [],
+      stockCount: numberValue(offer.stockCount),
+    });
+  }
+
+  return offers;
+}
+
+function getStoredProbeResult(meta: Record<string, unknown>): SubmissionProbeResult | null {
+  const value = meta.probe_result;
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as SubmissionProbeResult)
+    : null;
+}
+
 function getSuggestedSourceName(meta: Record<string, unknown>): string | null {
   return typeof meta.suggested_source_name === "string" && meta.suggested_source_name.trim()
     ? meta.suggested_source_name.trim()
@@ -657,4 +864,17 @@ function getSuggestedCollectionMethod(meta: Record<string, unknown>): Collection
   return value === "aibijia_json" || value === "browser" || value === "http" || value === "manual"
     ? value
     : null;
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function numberValue(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }

@@ -50,7 +50,7 @@ export const seedSources: Source[] = [
     entryUrl: "https://pay.ldxp.cn/shop/jinyao",
     collectionMethod: "browser",
     enabled: true,
-    notes: "可能出现 WAF，无法公开读取时使用人工补录。",
+    notes: "可能出现 WAF，无法公开读取时进入采集器待办。",
     updatedAt: now,
   },
   {
@@ -90,7 +90,7 @@ export const seedSources: Source[] = [
     entryUrl: "https://pay.ldxp.cn/shop/pixelshop",
     collectionMethod: "browser",
     enabled: true,
-    notes: "可能出现 WAF，无法公开读取时使用人工补录。",
+    notes: "可能出现 WAF，无法公开读取时进入采集器待办。",
     updatedAt: now,
   },
 ];

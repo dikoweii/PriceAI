@@ -189,7 +189,7 @@ export const canonicalCatalog: CanonicalProduct[] = [
     platform: "其他",
     productType: "其他",
     spec: "未归类",
-    summary: "暂未匹配到标准商品，可在后台人工修正。",
+    summary: "暂未匹配到标准商品，可在后台修正归类。",
     aliases: ["other"],
   },
 ];

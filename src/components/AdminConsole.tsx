@@ -45,14 +45,17 @@ type ProbeOffer = {
 };
 
 type ProbeResult = {
+  sourceId?: string;
   sourceName?: string;
   sourceUrl?: string;
+  baseUrl?: string;
   kind: string | null;
   status: "success" | "empty" | "failed" | "unsupported";
   offerCount: number;
   offers: ProbeOffer[];
   ms?: number;
   message?: string;
+  finishedAt?: string;
 };
 
 type AdminTab = "review" | "collect" | "sources" | "manual" | "logs";
@@ -71,6 +74,19 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
   const [probeResults, setProbeResults] = useState<Record<string, ProbeResult>>({});
   const [activeTab, setActiveTab] = useState<AdminTab>("review");
 
+  const reviewSubmissions = useMemo(
+    () => submissions.filter((submission) => !isCollectorTodo(submission)),
+    [submissions],
+  );
+  const collectorTodoSubmissions = useMemo(
+    () => submissions.filter(isCollectorTodo),
+    [submissions],
+  );
+  const sourceById = useMemo(
+    () => new Map(data.sources.map((source) => [source.id, source])),
+    [data.sources],
+  );
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const stored = window.sessionStorage.getItem("ai-price-hub-admin");
@@ -88,9 +104,10 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
       ["渠道源", data.sources.length.toString(), <Store key="store" size={17} />],
       ["标准商品", data.products.length.toString(), <Database key="db" size={17} />],
       ["报价", data.rawOffers.length.toString(), <FileInput key="file" size={17} />],
-      ["待审核", submissions.length.toString(), <Inbox key="inbox" size={17} />],
+      ["待审核", reviewSubmissions.length.toString(), <Inbox key="inbox" size={17} />],
+      ["采集待办", collectorTodoSubmissions.length.toString(), <TerminalSquare key="terminal" size={17} />],
     ],
-    [data, submissions.length],
+    [collectorTodoSubmissions.length, data, reviewSubmissions.length],
   );
   const offerCountBySource = useMemo(() => {
     const map = new Map<string, number>();
@@ -107,13 +124,19 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
   );
   const adminTabs = useMemo(
     () => [
-      { id: "review" as const, label: "审核", count: submissions.length },
+      { id: "review" as const, label: "审核", count: reviewSubmissions.length + collectorTodoSubmissions.length },
       { id: "collect" as const, label: "采集", count: failedRunCount },
       { id: "sources" as const, label: "渠道", count: data.sources.length },
-      { id: "manual" as const, label: "补录", count: null },
+      { id: "manual" as const, label: "维护", count: null },
       { id: "logs" as const, label: "日志", count: data.crawlRuns.length },
     ],
-    [data.crawlRuns.length, data.sources.length, failedRunCount, submissions.length],
+    [
+      collectorTodoSubmissions.length,
+      data.crawlRuns.length,
+      data.sources.length,
+      failedRunCount,
+      reviewSubmissions.length,
+    ],
   );
 
   async function login(event: FormEvent<HTMLFormElement>) {
@@ -252,7 +275,14 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
     if (result.ok) {
       setSubmissions((prev) => prev.filter((item) => item.id !== submission.id));
       setProbeResults((prev) => omitKey(prev, submission.id));
-      setMessage({ type: "success", text: `已通过：${result.source?.name || submission.url}` });
+      const imported = Number(result.importedOfferCount || 0);
+      const merged = Boolean(result.matchedExistingSource);
+      setMessage({
+        type: "success",
+        text: merged
+          ? `已合并到已有源：${result.source?.name || submission.url}${imported ? `，入库 ${imported} 条报价。` : "。"}`
+          : `已通过并入库：${result.source?.name || submission.url}，入库 ${imported} 条报价。`,
+      });
     } else {
       if (isAlreadyHandled(result.message)) {
         setSubmissions((prev) => prev.filter((item) => item.id !== submission.id));
@@ -273,12 +303,31 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
     if (result.ok && result.result) {
       const probeResult = result.result as ProbeResult;
       setProbeResults((prev) => ({ ...prev, [submission.id]: probeResult }));
+      if (result.submission) {
+        setSubmissions((prev) => replaceSubmission(prev, result.submission as ChannelSubmission));
+      }
       setMessage({
         type: probeResult.status === "success" ? "success" : "info",
         text: probeResult.message || "试采集完成。",
       });
     } else {
       setMessage({ type: "error", text: result.message || "试采集失败。" });
+    }
+  }
+
+  async function todoSubmission(submission: ChannelSubmission, note: string) {
+    setLoadingAction(`todo-${submission.id}`);
+    const result = await request("/api/admin/submissions/todo", password, {
+      id: submission.id,
+      note: note || null,
+    });
+    setLoadingAction(null);
+
+    if (result.ok && result.submission) {
+      setSubmissions((prev) => replaceSubmission(prev, result.submission as ChannelSubmission));
+      setMessage({ type: "info", text: "已加入采集器待办，后续补解析脚本后可重新试采集。" });
+    } else {
+      setMessage({ type: "error", text: result.message || "加入待办失败。" });
     }
   }
 
@@ -313,11 +362,11 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
             </Link>
             <h1 className="mt-2 text-3xl font-semibold tracking-normal">后台管理</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">
-              管理来源、补录报价、同步 Aibijia 公开数据，并查看半自动浏览器采集的运行记录。
+              管理来源、审核提交、同步 Aibijia 公开数据，并查看自动采集与浏览器采集记录。
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:w-[560px]">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5 lg:w-[700px]">
             {summary.map(([label, value, icon]) => (
               <div key={String(label)} className="border border-stone-200 bg-stone-50 px-3 py-2">
                 <div className="flex items-center gap-2 text-xs text-stone-500">
@@ -395,18 +444,20 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
             </div>
 
             {activeTab === "review" ? (
-              <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-                <Panel title={`待审核提交 (${submissions.length})`} icon={<Inbox size={18} />}>
-                  {submissions.length ? (
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+                <Panel title={`待审核提交 (${reviewSubmissions.length})`} icon={<Inbox size={18} />}>
+                  {reviewSubmissions.length ? (
                     <div className="divide-y divide-stone-200 border border-stone-200">
-                      {submissions.map((submission) => (
+                      {reviewSubmissions.map((submission) => (
                         <SubmissionRow
                           key={submission.id}
                           submission={submission}
+                          existingSource={sourceById.get(suggestedSourceIdForSubmission(submission) || "") || null}
                           loadingAction={loadingAction}
                           probeResult={probeResults[submission.id]}
                           onApprove={approveSubmission}
                           onProbe={probeSubmission}
+                          onTodo={todoSubmission}
                           onReject={rejectSubmission}
                         />
                       ))}
@@ -415,31 +466,39 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
                     <div className="border border-stone-200 bg-stone-50 px-4 py-6">
                       <p className="text-sm font-medium text-stone-900">暂无待审核提交</p>
                       <p className="mt-2 text-sm leading-6 text-stone-600">
-                        用户提交的新渠道会出现在这里。审核前先试采集，成功就直接启用，失败再改为浏览器采集或人工补录。
+                        用户提交的新渠道会先解析和试采集。成功后通过并入库，暂不支持的渠道进入采集器待办。
                       </p>
                     </div>
                   )}
                 </Panel>
 
-                <Panel title="审核规则" icon={<CheckCircle2 size={18} />}>
-                  <div className="space-y-4 text-sm leading-6 text-stone-600">
-                    <p>
-                      默认流程是先看解析结果，再试采集。试采集成功时，按钮会推荐启用自动采集；试采集失败时，按钮会推荐转浏览器采集。
-                    </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <StatTile label="待审核" value={submissions.length.toString()} />
-                      <StatTile label="采集失败" value={failedRunCount.toString()} />
+                <section className="space-y-5">
+                  <Panel title="审核规则" icon={<CheckCircle2 size={18} />}>
+                    <div className="space-y-4 text-sm leading-6 text-stone-600">
+                      <p>
+                        默认流程：解析链接，试采集，采集成功后通过并入库；如果匹配已有源，可以直接合并通过；暂不支持的渠道加入采集器待办。
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <StatTile label="待审核" value={reviewSubmissions.length.toString()} />
+                        <StatTile label="采集待办" value={collectorTodoSubmissions.length.toString()} />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("collect")}
+                        className="inline-flex h-10 w-full items-center justify-center gap-2 border border-stone-300 bg-white px-4 text-sm font-medium text-stone-800 hover:bg-stone-50"
+                      >
+                        查看采集状态
+                        <ChevronRight size={16} />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("collect")}
-                      className="inline-flex h-10 w-full items-center justify-center gap-2 border border-stone-300 bg-white px-4 text-sm font-medium text-stone-800 hover:bg-stone-50"
-                    >
-                      查看采集状态
-                      <ChevronRight size={16} />
-                    </button>
-                  </div>
-                </Panel>
+                  </Panel>
+
+                  <CollectorTodoPanel
+                    submissions={collectorTodoSubmissions}
+                    loadingAction={loadingAction}
+                    onRetry={probeSubmission}
+                  />
+                </section>
               </div>
             ) : null}
 
@@ -520,7 +579,6 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
                         <option value="browser">浏览器采集</option>
                         <option value="http">自动接口采集</option>
                         <option value="aibijia_json">Aibijia 数据</option>
-                        <option value="manual">人工维护</option>
                       </select>
                     </label>
                     <TextArea name="notes" label="备注" placeholder="采集限制、WAF、登录要求等" required={false} />
@@ -528,7 +586,10 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
                   </form>
                 </Panel>
 
-                <Panel title="手动补录报价" icon={<FileInput size={18} />}>
+                <Panel title="调试补录报价" icon={<FileInput size={18} />}>
+                  <p className="mb-3 text-xs leading-5 text-stone-500">
+                    仅用于排查分类和展示，不作为渠道长期维护方式。
+                  </p>
                   <form onSubmit={submitOffer} className="space-y-3">
                     <TextInput name="sourceName" label="来源名称" placeholder="例如 LDXP Pixelshop" />
                     <TextInput name="sourceUrl" label="来源入口" placeholder="https://pay.ldxp.cn/shop/pixelshop" type="url" />
@@ -611,6 +672,64 @@ function StatTile({ label, value }: { label: string; value: string }) {
       <p className="text-xs text-stone-500">{label}</p>
       <p className="mt-1 text-xl font-semibold text-stone-950">{value}</p>
     </div>
+  );
+}
+
+function CollectorTodoPanel({
+  submissions,
+  loadingAction,
+  onRetry,
+}: {
+  submissions: ChannelSubmission[];
+  loadingAction: string | null;
+  onRetry: (submission: ChannelSubmission) => void;
+}) {
+  return (
+    <Panel title={`采集器待办 (${submissions.length})`} icon={<TerminalSquare size={18} />}>
+      {submissions.length ? (
+        <div className="divide-y divide-amber-200 border border-amber-200 bg-amber-50">
+          {submissions.map((submission) => {
+            const meta = submission.parsedMeta || {};
+            const reason = stringMeta(meta, "collector_todo_reason") || stringMeta(meta, "support_reason");
+            const domain = stringMeta(meta, "domain") || safeDomain(submission.url);
+            const probeLoading = loadingAction === `probe-${submission.id}`;
+
+            return (
+              <div key={submission.id} className="px-3 py-3">
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <a
+                    href={submission.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium text-stone-950 hover:text-amber-900"
+                  >
+                    {submission.name || submission.parsedTitle || domain || submission.url}
+                  </a>
+                  {domain ? <span className="text-xs text-stone-500">{domain}</span> : null}
+                </div>
+                <p className="mt-1 break-all text-xs text-stone-500">{submission.url}</p>
+                <p className="mt-2 text-xs leading-5 text-amber-950">
+                  {reason || "需要新增解析脚本后重新试采集。"}
+                </p>
+                <button
+                  type="button"
+                  disabled={probeLoading}
+                  onClick={() => onRetry(submission)}
+                  className="mt-3 inline-flex h-8 items-center gap-1.5 border border-amber-300 bg-white px-3 text-xs font-medium text-stone-800 hover:bg-amber-100 disabled:opacity-60"
+                >
+                  {probeLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
+                  重新试采集
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="text-sm leading-6 text-stone-500">
+          暂无待开发采集器。试采集失败的渠道可以先放到这里，后续新增解析脚本后再重新验证。
+        </p>
+      )}
+    </Panel>
   );
 }
 
@@ -714,13 +833,16 @@ function groupSources(sources: Source[]) {
 
 function SubmissionRow({
   submission,
+  existingSource,
   loadingAction,
   probeResult,
   onApprove,
   onProbe,
+  onTodo,
   onReject,
 }: {
   submission: ChannelSubmission;
+  existingSource?: Source | null;
   loadingAction: string | null;
   probeResult?: ProbeResult;
   onApprove: (
@@ -728,6 +850,7 @@ function SubmissionRow({
     overrides: { name?: string; collectionMethod?: CollectionMethod },
   ) => void;
   onProbe: (submission: ChannelSubmission) => void;
+  onTodo: (submission: ChannelSubmission, note: string) => void;
   onReject: (submission: ChannelSubmission, note: string) => void;
 }) {
   const meta = submission.parsedMeta || {};
@@ -740,25 +863,29 @@ function SubmissionRow({
   const suggestedCollector = stringMeta(meta, "suggested_collector_kind");
   const supportReason = stringMeta(meta, "support_reason");
   const parseError = typeof meta.parse_error === "string" ? meta.parse_error : null;
+  const currentProbe = probeResult || probeResultFromMeta(meta);
+  const hasSuccessfulProbe = currentProbe?.status === "success" && currentProbe.offerCount > 0;
+  const canApprove = Boolean(existingSource || hasSuccessfulProbe);
 
-  const [mode, setMode] = useState<"idle" | "approve" | "reject">("idle");
+  const [mode, setMode] = useState<"idle" | "approve" | "todo" | "reject">("idle");
   const [name, setName] = useState(submission.name || suggestedName || submission.parsedTitle || "");
-  const [collectionMethod, setCollectionMethod] = useState<CollectionMethod>(suggestedMethod || "browser");
+  const [collectionMethod, setCollectionMethod] = useState<CollectionMethod>(suggestedMethod || "http");
+  const [collectorNote, setCollectorNote] = useState(
+    stringMeta(meta, "collector_todo_reason") || stringMeta(meta, "support_reason") || "",
+  );
   const [reviewerNote, setReviewerNote] = useState("");
 
-  const recommendedMethod: CollectionMethod = probeResult
-    ? probeResult.status === "success"
-      ? "http"
-      : "browser"
-    : suggestedMethod || collectionMethod || "browser";
-  const recommendedAction =
-    probeResult?.status === "success"
-      ? `通过并启用${collectionMethodLabel(recommendedMethod)}采集`
-      : probeResult
-        ? "改为浏览器采集并通过"
+  const recommendedMethod: CollectionMethod = hasSuccessfulProbe ? "http" : suggestedMethod || collectionMethod || "http";
+  const recommendedAction = existingSource
+    ? `合并到已有源：${existingSource.name}`
+    : hasSuccessfulProbe
+      ? `通过并入库 ${currentProbe?.offerCount || 0} 条`
+      : currentProbe
+        ? "加入采集器待办"
         : "试采集";
   const approveLoading = loadingAction === `approve-${submission.id}`;
   const probeLoading = loadingAction === `probe-${submission.id}`;
+  const todoLoading = loadingAction === `todo-${submission.id}`;
   const rejectLoading = loadingAction === `reject-${submission.id}`;
 
   return (
@@ -783,6 +910,7 @@ function SubmissionRow({
         {suggestedCollector ? <Badge tone="info">采集器: {suggestedCollector}</Badge> : null}
         {submission.contact ? <Badge tone="info">联系: {submission.contact}</Badge> : null}
         {parseError ? <Badge tone="warn">解析失败: {parseError}</Badge> : null}
+        {existingSource ? <Badge tone="info">匹配已有源: {existingSource.name}</Badge> : null}
       </div>
       <div className="mt-3 grid gap-2 border border-stone-200 bg-stone-50 p-3 text-xs text-stone-600 sm:grid-cols-2">
         <p>
@@ -801,44 +929,66 @@ function SubmissionRow({
           <span className="font-medium text-stone-800">初步判断：</span>
           {supportReason || "已完成基础链接解析。"}
         </p>
+        {existingSource ? (
+          <p>
+            <span className="font-medium text-stone-800">合并目标：</span>
+            {existingSource.name}
+          </p>
+        ) : null}
       </div>
       {submission.notes ? (
         <p className="mt-2 text-xs text-stone-600">备注：{submission.notes}</p>
       ) : null}
 
-      {probeResult ? <ProbePreview result={probeResult} /> : null}
+      {currentProbe ? <ProbePreview result={currentProbe} /> : null}
 
       {mode === "idle" ? (
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
-            disabled={probeLoading || approveLoading}
+            disabled={probeLoading || approveLoading || todoLoading}
             onClick={() => {
-              if (!probeResult) {
+              if (canApprove) {
+                onApprove(submission, { name, collectionMethod: recommendedMethod });
+                return;
+              }
+              if (!currentProbe) {
                 onProbe(submission);
                 return;
               }
-              onApprove(submission, { name, collectionMethod: recommendedMethod });
+              setMode("todo");
             }}
             className="inline-flex h-9 items-center gap-1.5 bg-stone-900 px-3 text-xs font-medium text-white hover:bg-stone-700 disabled:opacity-60"
           >
             {probeLoading ? (
               <Loader2 size={14} className="animate-spin" />
-            ) : probeResult ? (
+            ) : canApprove ? (
               <CheckCircle2 size={14} />
             ) : (
               <RefreshCcw size={14} />
             )}
             {recommendedAction}
           </button>
-          <button
-            type="button"
-            onClick={() => setMode("approve")}
-            className="inline-flex h-9 items-center gap-1.5 border border-stone-300 bg-white px-3 text-xs font-medium text-stone-700 hover:bg-stone-50"
-          >
-            <CheckCircle2 size={14} />
-            {probeResult ? "编辑后通过" : "跳过试采集"}
-          </button>
+          {canApprove ? (
+            <button
+              type="button"
+              onClick={() => setMode("approve")}
+              className="inline-flex h-9 items-center gap-1.5 border border-stone-300 bg-white px-3 text-xs font-medium text-stone-700 hover:bg-stone-50"
+            >
+              <CheckCircle2 size={14} />
+              编辑后通过
+            </button>
+          ) : currentProbe ? (
+            <button
+              type="button"
+              disabled={probeLoading}
+              onClick={() => onProbe(submission)}
+              className="inline-flex h-9 items-center gap-1.5 border border-stone-300 bg-white px-3 text-xs font-medium text-stone-700 hover:bg-stone-50 disabled:opacity-60"
+            >
+              {probeLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
+              重新试采集
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => setMode("reject")}
@@ -852,6 +1002,11 @@ function SubmissionRow({
 
       {mode === "approve" ? (
         <div className="mt-3 space-y-2 border border-stone-200 bg-stone-50 p-3">
+          <p className="text-xs leading-5 text-stone-600">
+            {existingSource
+              ? `该提交会合并到已有源「${existingSource.name}」。`
+              : `该提交会创建渠道，并把试采集结果入库。`}
+          </p>
           <label className="block text-xs">
             <span className="mb-1 block font-medium text-stone-500">渠道名称</span>
             <input
@@ -870,7 +1025,6 @@ function SubmissionRow({
             >
               <option value="http">自动接口采集</option>
               <option value="browser">浏览器采集</option>
-              <option value="manual">人工维护</option>
             </select>
           </label>
           <div className="flex gap-2">
@@ -881,12 +1035,47 @@ function SubmissionRow({
               className="inline-flex h-8 items-center gap-1 bg-emerald-700 px-3 text-xs font-medium text-white hover:bg-emerald-600 disabled:opacity-60"
             >
               {approveLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-              确认通过
+              确认通过并入库
             </button>
             <button
               type="button"
               onClick={() => setMode("idle")}
               className="inline-flex h-8 items-center gap-1 border border-stone-300 bg-white px-3 text-xs font-medium text-stone-700 hover:bg-stone-50"
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {mode === "todo" ? (
+        <div className="mt-3 space-y-2 border border-amber-200 bg-amber-50 p-3">
+          <p className="text-xs leading-5 text-amber-950">
+            这个渠道暂时不进入比价库，保留为采集器待办。补解析脚本后可以重新试采集。
+          </p>
+          <label className="block text-xs">
+            <span className="mb-1 block font-medium text-amber-900">待办说明</span>
+            <input
+              value={collectorNote}
+              onChange={(event) => setCollectorNote(event.target.value)}
+              className="h-9 w-full border border-amber-300 bg-white px-2 text-sm outline-none focus:border-amber-700"
+              placeholder="如：需要新增该域名解析脚本 / 接口未识别"
+            />
+          </label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={todoLoading}
+              onClick={() => onTodo(submission, collectorNote)}
+              className="inline-flex h-8 items-center gap-1 bg-stone-900 px-3 text-xs font-medium text-white hover:bg-stone-700 disabled:opacity-60"
+            >
+              {todoLoading ? <Loader2 size={14} className="animate-spin" /> : <TerminalSquare size={14} />}
+              加入采集器待办
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("idle")}
+              className="inline-flex h-8 items-center gap-1 border border-amber-300 bg-white px-3 text-xs font-medium text-stone-700 hover:bg-amber-100"
             >
               取消
             </button>
@@ -946,8 +1135,8 @@ function ProbePreview({ result }: { result: ProbeResult }) {
           : "采集失败";
   const nextAction =
     result.status === "success"
-      ? "建议直接通过，并启用自动接口采集。"
-      : "建议改为浏览器采集；如果仍失败，再转人工补录。";
+      ? "建议通过并把本次试采集报价写入正式报价库。"
+      : "当前不进入比价库；建议加入采集器待办，补解析脚本后重新试采集。";
 
   return (
     <div className="mt-3 border border-stone-200 bg-white p-3">
@@ -1034,7 +1223,7 @@ function collectionMethodLabel(value: string): string {
     aibijia_json: "Aibijia",
     browser: "浏览器",
     http: "自动",
-    manual: "人工",
+    manual: "待开发",
     aibijia_import: "Aibijia",
   };
   return labels[value] || value;
@@ -1064,6 +1253,85 @@ function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
 
 function isAlreadyHandled(message: unknown): boolean {
   return typeof message === "string" && (message.includes("已被处理") || message.includes("不存在"));
+}
+
+function replaceSubmission(items: ChannelSubmission[], next: ChannelSubmission): ChannelSubmission[] {
+  let replaced = false;
+  const updated = items.map((item) => {
+    if (item.id !== next.id) return item;
+    replaced = true;
+    return next;
+  });
+  return replaced ? updated : [next, ...items];
+}
+
+function isCollectorTodo(submission: ChannelSubmission): boolean {
+  return stringMeta(submission.parsedMeta || {}, "review_stage") === "collector_todo";
+}
+
+function suggestedSourceIdForSubmission(submission: ChannelSubmission): string | null {
+  return stringMeta(submission.parsedMeta || {}, "suggested_source_id");
+}
+
+function probeResultFromMeta(meta: Record<string, unknown>): ProbeResult | null {
+  const value = meta.probe_result;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  const record = value as Record<string, unknown>;
+  const status = stringMeta(record, "status");
+  if (status !== "success" && status !== "empty" && status !== "failed" && status !== "unsupported") {
+    return null;
+  }
+
+  return {
+    sourceId: stringMeta(record, "sourceId") || undefined,
+    sourceName: stringMeta(record, "sourceName") || undefined,
+    sourceUrl: stringMeta(record, "sourceUrl") || undefined,
+    baseUrl: stringMeta(record, "baseUrl") || undefined,
+    kind: stringMeta(record, "kind"),
+    status,
+    offerCount: numberMeta(record, "offerCount") || 0,
+    offers: Array.isArray(record.offers)
+      ? record.offers.map(mapProbeOffer).filter((offer): offer is ProbeOffer => Boolean(offer))
+      : [],
+    ms: numberMeta(record, "ms") || undefined,
+    message: stringMeta(record, "message") || undefined,
+    finishedAt: stringMeta(record, "finishedAt") || undefined,
+  };
+}
+
+function mapProbeOffer(value: unknown): ProbeOffer | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const sourceTitle = stringMeta(record, "sourceTitle");
+  const url = stringMeta(record, "url");
+  if (!sourceTitle || !url) return null;
+
+  return {
+    sourceStoreName: stringMeta(record, "sourceStoreName"),
+    sourceTitle,
+    price: numberMeta(record, "price"),
+    currency: stringMeta(record, "currency") || "CNY",
+    status: offerStatusMeta(record, "status"),
+    url,
+    tags: Array.isArray(record.tags) ? record.tags.map(String).filter(Boolean) : [],
+    stockCount: numberMeta(record, "stockCount"),
+  };
+}
+
+function numberMeta(meta: Record<string, unknown>, key: string): number | null {
+  const value = meta[key];
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function offerStatusMeta(meta: Record<string, unknown>, key: string): OfferStatus {
+  const value = stringMeta(meta, key);
+  return value === "out_of_stock" ? "out_of_stock" : "in_stock";
 }
 
 function classifySourceGroup(source: Source): string {

@@ -54,7 +54,7 @@ export function SubmissionFloater() {
         return;
       }
       setStatus("success");
-      setMessage("已收到，审核通过后会出现在列表里。");
+      setMessage("已收到。系统会先解析链接，采集成功并审核后进入比价。");
       formRef.current?.reset();
     } catch (error) {
       setStatus("error");
@@ -83,7 +83,7 @@ export function SubmissionFloater() {
               <div>
                 <h2 className="text-lg font-semibold text-[#2d3435]">提交渠道</h2>
                 <p className="mt-1 text-sm text-[#5a6061]">
-                  推荐你知道的卡网/镜像/代充链接，我审核后会加入比价。
+                  推荐你知道的卡网/镜像/代充链接，系统会先解析和试采集，再决定是否加入比价。
                 </p>
               </div>
               <button

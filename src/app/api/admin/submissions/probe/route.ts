@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { probeSource } from "../../../../../../scripts/collect-prices.mjs";
-import { getAdminPasswordFromRequest } from "@/lib/admin";
+import { getAdminPasswordFromRequest, recordSubmissionProbeResult } from "@/lib/admin";
 import { requireAdminPassword } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase";
 
@@ -42,8 +42,9 @@ export async function POST(request: Request) {
       rawOffers: [{ url: submission.url }],
       limit: 12,
     });
+    const updated = await recordSubmissionProbeResult(payload.id, result);
 
-    return Response.json({ ok: true, result });
+    return Response.json({ ok: true, result, submission: updated });
   } catch (error) {
     const message = error instanceof Error ? error.message : "试采集失败。";
     return Response.json(
