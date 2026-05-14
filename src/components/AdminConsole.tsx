@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { FormEvent, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
@@ -81,6 +82,7 @@ const statusOptions: Array<[OfferStatus, string]> = [
 /* ─── Main Component ─── */
 
 export function AdminConsole({ data }: { data: AdminSummary }) {
+  const router = useRouter();
   const [password, setPassword] = useState("");
   const [authed, setAuthed] = useState(false);
   const [globalMessage, setGlobalMessage] = useState<Message | null>(null);
@@ -305,6 +307,52 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
       setGlobalMessage({ type: "error", text: error instanceof Error ? error.message : "网络错误。" });
     } finally {
       setLoadingAction(null);
+    }
+  }
+
+  async function collectSource(source: Source) {
+    setLoadingAction(`collect-source-${source.id}`);
+    showRowFeedback(source.id, "success", `正在重试采集「${source.name}」...`);
+
+    try {
+      const response = await fetch(`/api/cron/collect-prices?source=${encodeURIComponent(source.id)}`, {
+        method: "POST",
+        headers: { "x-admin-password": password },
+      });
+      const json = await response.json().catch(() => ({ ok: false, message: response.statusText }));
+      const summary = Array.isArray(json.summary) ? json.summary[0] : null;
+
+      if (response.ok && json.ok && summary?.status === "success") {
+        showRowFeedback(source.id, "success", `重试成功：采集到 ${summary.offers || 0} 条报价。`);
+        router.refresh();
+      } else {
+        showRowFeedback(source.id, "error", summary?.message || json.message || "重试失败。");
+        router.refresh();
+      }
+    } catch (error) {
+      showRowFeedback(source.id, "error", error instanceof Error ? error.message : "网络错误。");
+    } finally {
+      setLoadingAction(null);
+    }
+  }
+
+  async function copyBrowserCommand(source: Source) {
+    const command = buildBrowserCollectCommand(source);
+    try {
+      await navigator.clipboard.writeText(command);
+      showRowFeedback(source.id, "success", "已复制本机浏览器采集命令。");
+    } catch {
+      showRowFeedback(source.id, "error", command);
+    }
+  }
+
+  async function copySourceCollectorContext(source: Source) {
+    const context = buildSourceCollectorContext(source);
+    try {
+      await navigator.clipboard.writeText(context);
+      showRowFeedback(source.id, "success", "已复制采集器开发上下文。");
+    } catch {
+      showRowFeedback(source.id, "error", context);
     }
   }
 
@@ -930,7 +978,15 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
             {activeTab === "sources" && (
               <div role="tabpanel" id="tabpanel-sources">
                 <Panel title="总渠道源" icon={<Store size={17} />}>
-                  <SourceTable groups={sourceGroups} offerCountBySource={offerCountBySource} />
+                  <SourceTable
+                    groups={sourceGroups}
+                    offerCountBySource={offerCountBySource}
+                    loadingAction={loadingAction}
+                    feedback={rowFeedback}
+                    onRetry={collectSource}
+                    onCopyBrowserCommand={copyBrowserCommand}
+                    onCopyCollectorContext={copySourceCollectorContext}
+                  />
                 </Panel>
               </div>
             )}
@@ -1555,18 +1611,29 @@ function Badge({ children, tone = "default" }: { children: ReactNode; tone?: "de
 function SourceTable({
   groups,
   offerCountBySource,
+  loadingAction,
+  feedback,
+  onRetry,
+  onCopyBrowserCommand,
+  onCopyCollectorContext,
 }: {
   groups: Array<{ label: string; sources: Source[] }>;
   offerCountBySource: Map<string, number>;
+  loadingAction: string | null;
+  feedback: RowFeedback | null;
+  onRetry: (source: Source) => void;
+  onCopyBrowserCommand: (source: Source) => void;
+  onCopyCollectorContext: (source: Source) => void;
 }) {
   return (
     <div className="overflow-hidden rounded-lg border border-[#adb3b4]/20">
-      <div className="hidden grid-cols-[1fr_70px_120px_110px_150px] gap-3 border-b border-[#adb3b4]/20 bg-[#f2f4f4] px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#5a6061] md:grid">
+      <div className="hidden grid-cols-[1fr_70px_110px_110px_150px_180px] gap-3 border-b border-[#adb3b4]/20 bg-[#f2f4f4] px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-[#5a6061] md:grid">
         <span>来源</span>
         <span>报价</span>
         <span>采集方式</span>
         <span>健康</span>
         <span>最近采集</span>
+        <span>操作</span>
       </div>
       <div className="divide-y divide-[#adb3b4]/15">
         {groups.map((group) => (
@@ -1575,34 +1642,121 @@ function SourceTable({
               {group.label} · {group.sources.length} 个
             </div>
             {group.sources.map((source) => (
-              <div key={source.id} className="grid gap-2 bg-white px-3 py-3 md:grid-cols-[1fr_70px_120px_110px_150px] md:items-center">
-                <div className="min-w-0">
-                  <p className="font-medium text-[#2d3435]">{source.name}</p>
-                  <a
-                    href={source.entryUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1 block truncate text-xs text-[#adb3b4] transition-colors hover:text-[#47657a]"
-                  >
-                    {source.entryUrl}
-                  </a>
-                  {source.lastError && <p className="mt-1 line-clamp-1 text-xs text-[#9b3328]">{source.lastError}</p>}
-                </div>
-                <span className="text-sm font-medium text-[#5a6061]">
-                  <span className="mr-1 text-xs text-[#adb3b4] md:hidden">报价</span>
-                  {offerCountBySource.get(source.id) || 0}
-                </span>
-                <span className="text-sm text-[#5a6061]">{collectionMethodLabel(source.collectionMethod)}</span>
-                <span className={sourceHealthClass(source)}>{sourceHealthLabel(source)}</span>
-                <span className="text-xs leading-5 text-[#adb3b4]">
-                  {source.lastSuccessAt ? `确认 ${formatRelativeTime(source.lastSuccessAt)}` : source.lastCheckedAt ? "未确认成功" : "未采集"}
-                  {source.lastCheckedAt && <span className="block">检查 {formatRelativeTime(source.lastCheckedAt)}</span>}
-                </span>
-              </div>
+              <SourceTableRow
+                key={source.id}
+                source={source}
+                offerCount={offerCountBySource.get(source.id) || 0}
+                loading={loadingAction === `collect-source-${source.id}`}
+                feedback={feedback?.id === source.id ? feedback : null}
+                onRetry={onRetry}
+                onCopyBrowserCommand={onCopyBrowserCommand}
+                onCopyCollectorContext={onCopyCollectorContext}
+              />
             ))}
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function SourceTableRow({
+  source,
+  offerCount,
+  loading,
+  feedback,
+  onRetry,
+  onCopyBrowserCommand,
+  onCopyCollectorContext,
+}: {
+  source: Source;
+  offerCount: number;
+  loading: boolean;
+  feedback: RowFeedback | null;
+  onRetry: (source: Source) => void;
+  onCopyBrowserCommand: (source: Source) => void;
+  onCopyCollectorContext: (source: Source) => void;
+}) {
+  const needsBrowser = sourceNeedsBrowser(source);
+  const needsCollector = sourceNeedsCollector(source);
+  const canHttpRetry = source.enabled && source.collectionMethod === "http" && !needsCollector;
+  const hasIssue = sourceHasIssue(source);
+
+  return (
+    <div className="bg-white px-3 py-3">
+      <div className="grid gap-2 md:grid-cols-[1fr_70px_110px_110px_150px_180px] md:items-center">
+        <div className="min-w-0">
+          <p className="font-medium text-[#2d3435]">{source.name}</p>
+          <a
+            href={source.entryUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 block truncate text-xs text-[#adb3b4] transition-colors hover:text-[#47657a]"
+          >
+            {source.entryUrl}
+          </a>
+          {source.lastError && <p className="mt-1 line-clamp-2 text-xs text-[#9b3328]">{source.lastError}</p>}
+        </div>
+        <span className="text-sm font-medium text-[#5a6061]">
+          <span className="mr-1 text-xs text-[#adb3b4] md:hidden">报价</span>
+          {offerCount}
+        </span>
+        <span className="text-sm text-[#5a6061]">{collectionMethodLabel(source.collectionMethod)}</span>
+        <span className={sourceHealthClass(source)}>{sourceHealthLabel(source)}</span>
+        <span className="text-xs leading-5 text-[#adb3b4]">
+          {source.lastSuccessAt ? `确认 ${formatRelativeTime(source.lastSuccessAt)}` : source.lastCheckedAt ? "未确认成功" : "未采集"}
+          {source.lastCheckedAt && <span className="block">检查 {formatRelativeTime(source.lastCheckedAt)}</span>}
+        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {canHttpRetry ? (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => onRetry(source)}
+              className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition-colors disabled:opacity-60 ${
+                hasIssue
+                  ? "bg-[#2d3435] text-white hover:bg-[#202829]"
+                  : "border border-[#adb3b4]/30 bg-white text-[#5a6061] hover:bg-[#f2f4f4]"
+              }`}
+            >
+              {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
+              {hasIssue ? "重试" : "重采"}
+            </button>
+          ) : null}
+          {needsBrowser ? (
+            <button
+              type="button"
+              onClick={() => onCopyBrowserCommand(source)}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#adb3b4]/30 bg-white px-3 text-xs font-medium text-[#5a6061] transition-colors hover:bg-[#f2f4f4]"
+            >
+              <TerminalSquare size={14} />
+              本机采集
+            </button>
+          ) : null}
+          {needsCollector ? (
+            <>
+              <span className="rounded-full bg-[#fff7e8] px-2.5 py-1 text-xs font-medium text-[#7a541b]">
+                需补采集器
+              </span>
+              <button
+                type="button"
+                onClick={() => onCopyCollectorContext(source)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-3 text-xs font-medium text-[#7a541b] transition-colors hover:bg-[#fff7e8]"
+              >
+                <TerminalSquare size={14} />
+                复制上下文
+              </button>
+            </>
+          ) : null}
+        </div>
+      </div>
+      {feedback ? (
+        <div className={`mt-2 rounded-lg px-3 py-2 text-xs ${
+          feedback.type === "success" ? "bg-[#e8f3ec] text-[#2f7a4b]" : "bg-[#fbe9e7] text-[#9b3328]"
+        }`}>
+          {feedback.text}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1771,6 +1925,60 @@ function sourceHealthClass(source: Source): string {
   if (source.healthStatus === "partial" || source.healthStatus === "retrying") return `${base} bg-[#fff7e8] text-[#7a541b]`;
   if (source.healthStatus === "failing") return `${base} bg-[#fbe9e7] text-[#9b3328]`;
   return `${base} bg-[#e8f3ec] text-[#2f7a4b]`;
+}
+
+function sourceNeedsBrowser(source: Source): boolean {
+  const text = `${source.collectionMethod} ${source.lastError || ""} ${source.notes || ""}`.toLowerCase();
+  return (
+    source.collectionMethod === "browser" ||
+    text.includes("浏览器") ||
+    text.includes("captcha") ||
+    text.includes("waf") ||
+    text.includes("验证") ||
+    text.includes("风控")
+  );
+}
+
+function sourceNeedsCollector(source: Source): boolean {
+  const text = `${source.collectionMethod} ${source.lastError || ""} ${source.notes || ""}`.toLowerCase();
+  return (
+    source.collectionMethod === "manual" ||
+    text.includes("unsupported collector") ||
+    text.includes("暂未识别") ||
+    text.includes("补解析") ||
+    text.includes("补采集")
+  );
+}
+
+function sourceHasIssue(source: Source): boolean {
+  return Boolean(
+    source.lastError ||
+      source.healthStatus === "retrying" ||
+      source.healthStatus === "failing" ||
+      source.healthStatus === "partial" ||
+      (!source.lastSuccessAt && source.lastCheckedAt),
+  );
+}
+
+function buildBrowserCollectCommand(source: Source): string {
+  const url = source.entryUrl || source.baseUrl || "";
+  const name = source.name.replaceAll("\"", "\\\"");
+  return `npm run collect:browser -- --url \"${url}\" --name \"${name}\" --password <后台密码> --post`;
+}
+
+function buildSourceCollectorContext(source: Source): string {
+  return [
+    "请为 PriceAI 新增或修复来源采集器：",
+    `- 来源 ID：${source.id}`,
+    `- 来源名称：${source.name}`,
+    `- 入口链接：${source.entryUrl}`,
+    `- 主域名：${source.baseUrl || "未记录"}`,
+    `- 当前采集方式：${source.collectionMethod}`,
+    `- 最近错误：${source.lastError || "未记录"}`,
+    `- 现有报价数需要在后台渠道页确认`,
+    "- 期望输出字段：sourceTitle, price, status, url, stockCount",
+    `- 验证方式：npm run collect:prices -- --source ${source.id} --post`,
+  ].join("\n");
 }
 
 function omitKey<T>(record: Record<string, T>, key: string): Record<string, T> {
