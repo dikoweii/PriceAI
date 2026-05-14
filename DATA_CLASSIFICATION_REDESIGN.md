@@ -83,7 +83,7 @@
 
 ### 2.5 未匹配标准商品
 
-有些报价属于某个平台，但暂时不进入标准商品聚合。例如明确的 ChatGPT Team / Business，如果本期不再维护 Team 标准商品，它仍然应该出现在 `ChatGPT -> 全部报价` 中，但不参与 ChatGPT 标准商品卡片。
+有些报价属于某个平台，但暂时无法确认具体标准商品。例如标题只写了 `ChatGPT 账号`，但没有明确普号、Plus、Pro 或 Team。它仍然应该出现在 `ChatGPT -> 全部报价` 中，但暂时不参与标准商品聚合。
 
 建议内部使用 `未匹配标准商品` 或 `platform_unmapped` 这类概念，但前台不把它做成复杂标签。
 
@@ -117,7 +117,7 @@
 4. 支持人民币符号 `¥`、`￥`，以及纯数字 API 字段。
 5. 不允许把销量、库存、规格编号、渠道编号当成价格。
 6. 价格解析失败时，该报价不入库或不更新价格。
-7. 明显异常的价格不参与最低价。
+7. 价格解析失败时保留旧数据或记录失败，不用人为价格阈值判断。
 
 ### 3.3 解析格式
 
@@ -141,24 +141,22 @@
 200刀款
 ```
 
-### 3.4 高风险价格保护
+### 3.4 不做价格阈值保护
 
-有些商品有天然价格区间。解析出来的价格如果明显不合理，应标记为内部异常，不参与最低价。
+第一版不做 `Pro 20倍低于多少就是异常` 这类保护。
 
-建议第一版使用保守规则：
+原因：
 
-| 商品识别 | 异常条件 | 处理 |
-| --- | --- | --- |
-| ChatGPT Pro 20倍 | 有货价 `< 500` | 不参与最低价，进入后台价格异常列表 |
-| ChatGPT Pro 5倍 | 有货价 `< 300` | 不参与最低价，进入后台价格异常列表 |
-| Claude Max 20x | 有货价 `< 300` | 不参与最低价，进入后台价格异常列表 |
-| 明确月卡/Plus | 价格 `< 1` | 不参与最低价，进入后台价格异常列表 |
+- 卡网价格波动大，低价不一定是错误。
+- 有些商品标题本身就可能混杂规格、地区、时长、质保规则，阈值容易误伤。
+- 用户前台只需要知道这条报价当前是 `有货` 还是 `缺货`。
 
-注意：
+因此最低价只看两个条件：
 
-- 这是价格保护，不是库存状态。前台仍只显示 `有货` 或 `缺货`。
-- 后台可以显示 `价格异常`，用于排查采集器。
-- 如果后续发现低价是真实商品，可以把该商品加入白名单或调整阈值。
+1. 价格字段能被正确解析。
+2. 报价状态是 `有货`。
+
+如果价格解析失败，就不要用错误价格更新报价。后续排查重点应该是采集器解析是否准确，而不是给商品设置固定价格下限。
 
 ### 3.5 采集器测试要求
 
@@ -258,13 +256,13 @@ VISA 0刀虚拟卡 485954（gemini，gpt需要自测）
 
 ### 5.1 ChatGPT
 
-本期 ChatGPT 只保留五个标准商品。
+本期 ChatGPT 保留五个标准商品。
 
 | 标准商品 | 收纳内容 | 排除内容 |
 | --- | --- | --- |
 | ChatGPT 普号 | OpenAI 普号、ChatGPT 普号、Free 号、白号、普通账号、可登录账号 | Plus、Pro、Team、API |
 | ChatGPT Plus | Plus 月卡、Plus 成品号、Plus 直充、Plus 代充、Plus 卡密、Plus CDK、Plus 自助开通、土区/iOS Plus、Plus 额度卡 | Pro 5倍、Pro 20倍、纯 API、纯邮箱、虚拟卡 |
-| ChatGPT T5倍 | 待确认命名与关键词，先预留 | 不确定商品不自动进入 |
+| ChatGPT Team / Business | Team、Business、T5、T5倍、团队号、母号、邀请、自动拉、Team 成品号、Business 成品号 | Plus、Pro 5倍、Pro 20倍、纯 API、纯邮箱 |
 | ChatGPT Pro 5倍 | Pro 5x、Pro 5倍、x5、100刀、100美元、100美金、Pro 100 档 | Plus、Pro 20倍、Gemini Pro |
 | ChatGPT Pro 20倍 | Pro 20x、Pro 20倍、x20、200刀、200美元、200美金、Pro 200 档 | Plus、Pro 5倍、Gemini Pro |
 
@@ -273,7 +271,9 @@ VISA 0刀虚拟卡 485954（gemini，gpt需要自测）
 - `ChatGPT Plus 成品号` 合并进 `ChatGPT Plus`。
 - `ChatGPT Plus 月卡` 合并进 `ChatGPT Plus`。
 - `GPT puls`、`GPT pulus`、`GPT plus` 等常见错拼，归 `ChatGPT Plus`。
-- `Team / Business` 暂不作为标准商品。如果标题明确是 Team / Business，进入 `ChatGPT 全部报价`，但不参与五个标准商品聚合。后续如果你需要再恢复 Team 标准商品。
+- `T5倍` 本文按 `Team / Business` 处理，不再单独建立一个叫 T5倍的标准商品。
+- 标题里同时出现 `Plus` 和 `Team` 时，需要优先判断主商品。如果是 `GPT Plus 土区官方直充 -卡密自助`，即使来源标签里有 `team`，也归 `ChatGPT Plus`。
+- 标题明确是 `Team`、`Business`、`母号`、`邀请`、`自动拉`，归 `ChatGPT Team / Business`。
 - `Bot 自助充值`、`无限提交 CDK` 这类标题如果没有明确 Plus/Pro/普号，先不归 ChatGPT 标准商品。
 
 ### 5.2 Claude
@@ -413,11 +413,12 @@ Gemini 只保留两个标准商品：
 
 1. 如果命中 `pro 20x`、`20倍`、`x20`、`200刀`、`200美元`、`200美金`，归 `ChatGPT Pro 20倍`。
 2. 如果命中 `pro 5x`、`5倍`、`x5`、`100刀`、`100美元`、`100美金`，归 `ChatGPT Pro 5倍`。
-3. 如果命中 `t5`、`t5倍`，归 `ChatGPT T5倍`。此规则需你确认具体关键词。
-4. 如果命中 `plus`、`plus 月卡`、`plus 成品号`、`plus 直充`、`plus 卡密`、`土区 plus`、`ios plus`，归 `ChatGPT Plus`。
+3. 如果命中 `plus`、`plus 月卡`、`plus 成品号`、`plus 直充`、`plus 卡密`、`土区 plus`、`ios plus`，归 `ChatGPT Plus`。
+4. 如果命中 `team`、`business`、`t5`、`t5倍`、`母号`、`邀请`、`自动拉`，归 `ChatGPT Team / Business`。
 5. 如果命中 `free`、`普号`、`白号`、`普通账号`、`openai 普号`，归 `ChatGPT 普号`。
-6. 如果只命中 `team`、`business`、`母号`、`邀请`，本期不进入标准商品，只进入 `ChatGPT 全部报价`。
-7. 其余 ChatGPT 相关报价进入 `ChatGPT 全部报价`，但不参与标准商品聚合。
+6. 其余 ChatGPT 相关报价进入 `ChatGPT 全部报价`，但不参与标准商品聚合，等待人工确认或后续规则补充。
+
+注意：`Plus` 优先级高于弱来源标签。只有标题本身明确表达 Team / Business 时，才归 `ChatGPT Team / Business`。
 
 ### 6.4 置信度只用于后台
 
@@ -447,7 +448,8 @@ Gemini 只保留两个标准商品：
 
 - 用户可以绕过标准商品分组，直接看某个平台所有原始报价。
 - 后台也可以用它发现误分类。
-- 对 Team / Business 这类暂不进入标准商品的报价，仍然有展示位置。
+- 对暂时无法进入标准商品的报价，仍然有展示位置。
+- 用户想粗看 ChatGPT 市场时，不必先判断自己要点 Plus、Pro、Team 还是普号，可以直接扫一整个平台的报价。
 
 ### 7.2 入口位置
 
@@ -484,25 +486,36 @@ ChatGPT
 
 桌面端建议表格：
 
-| 状态 | 渠道 | 原始商品名 | 归类 | 价格 | 最近确认 | 操作 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 有货 | beibei | ChatGPT Pro 20X 月卡... | Pro 20倍 | ¥1280 | 6 分钟前 | 前往购买 |
+| 状态 | 渠道 | 原始商品名 | 价格 | 最近确认 | 操作 |
+| --- | --- | --- | --- | --- | --- |
+| 有货 | beibei | ChatGPT Pro 20X 月卡... | ¥1280 | 6 分钟前 | 前往购买 |
+| 有货 | GPT专卖-cw | GPT Plus 土区官方直充 -卡密自助 | ¥128 | 9 分钟前 | 前往购买 |
+| 缺货 | Auto Subscribe | Business Team 母号 / 规格2 | ¥1.5 | 8 分钟前 | 查看 |
+
+这个视图的含义是：选中 `ChatGPT` 后，把所有属于 ChatGPT 平台的原始报价全部展示出来，包括：
+
+- ChatGPT 普号。
+- ChatGPT Plus。
+- ChatGPT Team / Business。
+- ChatGPT Pro 5倍。
+- ChatGPT Pro 20倍。
+- 暂时只能确认是 ChatGPT、但还没匹配到具体标准商品的报价。
+
+它更像“平台级详情页”，不是后台分类表。因此前台不需要展示 `归类` 这一列。
 
 排序默认：
 
 1. 有货在前。
-2. 内部价格异常或不参与最低价的报价靠后。
-3. 有货报价按价格从低到高。
-4. 缺货报价按最近确认时间倒序。
+2. 有货报价按价格从低到高。
+3. 缺货报价排在后面。
+4. 同状态同价格时，最近确认时间新的在前。
 
 筛选建议：
 
 - 搜索原始商品名。
 - 有货 / 缺货。
 - 来源渠道。
-- 标准商品。
 - 价格区间。
-- 只看未匹配标准商品。
 
 ### 7.5 移动端
 
@@ -512,7 +525,7 @@ ChatGPT
 有货  ¥1280
 beibei
 ChatGPT Pro 20X 月卡｜官方卡充｜1个月...
-归类：Pro 20倍 · 最近确认 6 分钟前
+最近确认 6 分钟前
 [前往购买]
 ```
 
@@ -523,7 +536,7 @@ ChatGPT Pro 20X 月卡｜官方卡充｜1个月...
 标准商品详情页仍保留，但全部报价视图是平台级详情。
 
 - 标准商品详情页：只看某个标准商品的所有渠道。
-- 平台全部报价视图：看某个平台下所有原始报价。
+- 平台全部报价视图：看某个平台下所有原始报价，效果类似把该平台下多个标准商品详情页合并到一张总表。
 
 这两个视图解决不同问题，建议都保留。
 
@@ -558,7 +571,7 @@ ChatGPT Pro 20X 月卡｜官方卡充｜1个月...
   "tags": ["ChatGPT", "推理强"],
   "currentPlatform": "ChatGPT",
   "currentCanonicalProduct": "chatgpt-pro-20x",
-  "allowedProducts": ["ChatGPT 普号", "ChatGPT Plus", "ChatGPT T5倍", "ChatGPT Pro 5倍", "ChatGPT Pro 20倍"]
+  "allowedProducts": ["ChatGPT 普号", "ChatGPT Plus", "ChatGPT Team / Business", "ChatGPT Pro 5倍", "ChatGPT Pro 20倍"]
 }
 ```
 
@@ -802,9 +815,9 @@ ChatGPT Pro 20X 月卡｜官方卡充｜1个月...
 - `canonical_product_id`：标准商品，可为空或为内部未匹配 ID。
 - `classification_confidence`：后台内部字段。
 - `classification_reason`：后台内部字段。
-- `price_parse_status`：`ok`、`failed`、`suspect`。
-- `price_parse_reason`：价格异常原因。
-- `eligible_for_lowest_price`：是否参与最低价。
+- `price_parse_status`：`ok`、`failed`。
+- `price_parse_reason`：解析失败原因。
+- `last_confirmed_at`：该报价最近一次被成功采集确认的时间。
 
 如果短期不想加字段，可以先在 `details` 或后台逻辑中实现，但长期建议结构化。
 
@@ -815,9 +828,8 @@ ChatGPT Pro 20X 月卡｜官方卡充｜1个月...
 - 合并 `chatgpt-plus-month` 和 `chatgpt-plus-account` 为 `chatgpt-plus`。
 - 保留 `chatgpt-pro-5x`。
 - 保留 `chatgpt-pro-20x`。
-- 新增 `chatgpt-t5x`，名称待确认。
+- 保留 `chatgpt-team-business`，名称统一为 `ChatGPT Team / Business`。
 - 保留或重命名 `chatgpt-free-account` 为 `chatgpt-free`。
-- 移除前台展示的 `chatgpt-team-business`，或改成内部未匹配。
 - 新增 `virtual-card`。
 
 迁移时需要保留旧 ID 到新 ID 的映射：
@@ -826,7 +838,7 @@ ChatGPT Pro 20X 月卡｜官方卡充｜1个月...
 | --- | --- |
 | chatgpt-plus-month | chatgpt-plus |
 | chatgpt-plus-account | chatgpt-plus |
-| chatgpt-team-business | 重新分类，不能简单映射 |
+| chatgpt-team-business | chatgpt-team-business |
 | other-product 中的 Super Grok | super-grok |
 | other-product 中的虚拟卡 | virtual-card |
 
@@ -841,13 +853,12 @@ ChatGPT Pro 20X 月卡｜官方卡充｜1个月...
 - 修正通用价格解析函数，支持千分位。
 - 修正贝贝采集器。
 - 修正浏览器采集价格正则。
-- 加入价格异常保护。
 - 对贝贝重新采集并覆盖错误报价。
 
 验收：
 
 - `ChatGPT Pro 20X` 贝贝报价显示 `¥1280`。
-- 不再出现 `Pro 20倍 ¥1` 参与最低价。
+- 不再把 `¥1,280.00` 误解析为 `¥1`。
 
 ### 阶段 2：分类规则
 
@@ -874,13 +885,13 @@ ChatGPT Pro 20X 月卡｜官方卡充｜1个月...
 
 - 在平台页增加 `标准商品 / 全部报价` 切换。
 - 新增平台全部报价表。
-- 支持来源、状态、标准商品、价格区间筛选。
+- 支持来源、状态、价格区间筛选。
 - 移动端改成紧凑列表。
 
 验收：
 
 - 进入 ChatGPT 后可直接查看所有 ChatGPT 原始报价。
-- 未进入标准商品的 Team / Business 也能在 ChatGPT 全部报价中看到。
+- ChatGPT 普号、Plus、Team / Business、Pro 5倍、Pro 20倍都能在 ChatGPT 全部报价中看到。
 - 缺货报价明显弱化。
 
 ### 阶段 4：渠道审核闭环
@@ -901,6 +912,8 @@ ChatGPT Pro 20X 月卡｜官方卡充｜1个月...
 
 ### 阶段 5：大模型辅助分类
 
+本阶段暂不进入第一期开发，只作为后续方向记录。
+
 任务：
 
 - 低置信度报价批量生成分类建议。
@@ -915,11 +928,9 @@ ChatGPT Pro 20X 月卡｜官方卡充｜1个月...
 
 ## 13. 待确认问题
 
-1. `ChatGPT T5倍` 的准确含义和关键词是什么？是否和 `Pro 5倍` 是不同商品？
-2. 明确的 `ChatGPT Team / Business` 是否完全不做标准商品，只放在 ChatGPT 全部报价？
-3. 虚拟卡是否作为顶层平台显示，还是只作为商品类型筛选？
-4. 价格异常是否在前台详情页显示小提示，还是只在后台显示？
-5. 是否需要第一版就加入大模型辅助分类，还是规则稳定后再做？
+1. `ChatGPT Team / Business` 的关键词是否还要补充，例如 `企业`、`workspace`、`团队席位`？
+2. 虚拟卡作为顶层平台展示后，是否需要独立图标和顶部导航入口？
+3. 大模型辅助分类先作为下一期方向记录，后续是否接 OpenAI API、Gemini API，还是先做离线批处理？
 
 ## 14. 建议确认后的第一批开发任务
 
@@ -931,4 +942,3 @@ ChatGPT Pro 20X 月卡｜官方卡充｜1个月...
 4. 跑一次全量重新分类。
 5. 做 ChatGPT 平台全部报价视图。
 6. 优化提交渠道审核和采集器待办闭环。
-
