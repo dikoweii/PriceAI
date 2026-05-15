@@ -190,7 +190,7 @@ export function PriceExplorer({
 
   const totalAvailable = data.products.reduce((sum, product) => sum + product.inStockCount, 0);
   const totalOutOfStock = data.products.reduce((sum, product) => sum + product.outOfStockCount, 0);
-  const showingOffers = scopeMode === "offers" && platform !== "全部";
+  const showingOffers = scopeMode === "offers";
   const title = buildTitle(platform, productType, showingOffers);
   const activeFilters = buildActiveFilters({ platform, productType, stock, minPrice, maxPrice });
   const resultCount = showingOffers ? platformOffers.length : products.length;
@@ -266,7 +266,9 @@ export function PriceExplorer({
               {title}
             </h1>
             <div className="mt-4 flex flex-wrap items-center gap-3 text-[0.72rem] font-medium text-[#5a6061]">
-              <span>最近更新：{formatRelativeTime(data.generatedAt)}</span>
+              <span>
+                最近更新：<RelativeTime value={data.generatedAt} />
+              </span>
               <span className="h-1 w-1 rounded-full bg-[#adb3b4]" />
               <span>{resultCount} {showingOffers ? "条报价" : "个商品"}</span>
               <span className="h-1 w-1 rounded-full bg-[#adb3b4]" />
@@ -300,50 +302,50 @@ export function PriceExplorer({
               <Filter size={17} />
               筛选{activeFilters.length ? ` ${activeFilters.length}` : ""}
             </button>
-            {platform !== "全部" ? (
-              <div className="inline-flex h-11 shrink-0 items-center rounded-full bg-[#e4e9ea] p-1 md:hidden">
+            <div className="inline-flex h-11 shrink-0 items-center rounded-full bg-[#e4e9ea] p-1 md:hidden">
+              <ViewToggleButton
+                active={scopeMode === "products"}
+                icon={<PackageCheck size={16} />}
+                label="标准"
+                onClick={() => setScopeMode("products")}
+              />
+              <ViewToggleButton
+                active={scopeMode === "offers"}
+                icon={<Database size={16} />}
+                label="报价"
+                onClick={() => setScopeMode("offers")}
+              />
+            </div>
+            <div className="hidden h-11 shrink-0 items-center rounded-full bg-[#e4e9ea] p-1 md:inline-flex">
+              <ViewToggleButton
+                active={scopeMode === "products"}
+                icon={<PackageCheck size={16} />}
+                label="标准商品"
+                onClick={() => setScopeMode("products")}
+              />
+              <ViewToggleButton
+                active={scopeMode === "offers"}
+                icon={<Database size={16} />}
+                label="全部报价"
+                onClick={() => setScopeMode("offers")}
+              />
+            </div>
+            {scopeMode === "products" ? (
+              <div className="hidden h-11 shrink-0 items-center rounded-full bg-[#edf0f1] p-1 md:inline-flex">
                 <ViewToggleButton
-                  active={scopeMode === "products"}
-                  icon={<PackageCheck size={16} />}
-                  label="标准"
-                  onClick={() => setScopeMode("products")}
+                  active={viewMode === "cards"}
+                  icon={<LayoutGrid size={16} />}
+                  label="卡片"
+                  onClick={() => setViewMode("cards")}
                 />
                 <ViewToggleButton
-                  active={scopeMode === "offers"}
+                  active={viewMode === "table"}
                   icon={<Table2 size={16} />}
-                  label="报价"
-                  onClick={() => setScopeMode("offers")}
+                  label="表格"
+                  onClick={() => setViewMode("table")}
                 />
               </div>
             ) : null}
-            <div className="hidden h-11 shrink-0 items-center rounded-full bg-[#e4e9ea] p-1 md:inline-flex">
-              {platform !== "全部" ? (
-                <ViewToggleButton
-                  active={scopeMode === "offers"}
-                  icon={<Table2 size={16} />}
-                  label="全部报价"
-                  onClick={() => setScopeMode("offers")}
-                />
-              ) : null}
-              <ViewToggleButton
-                active={scopeMode === "products" && viewMode === "cards"}
-                icon={<LayoutGrid size={16} />}
-                label="卡片"
-                onClick={() => {
-                  setScopeMode("products");
-                  setViewMode("cards");
-                }}
-              />
-              <ViewToggleButton
-                active={scopeMode === "products" && viewMode === "table"}
-                icon={<Table2 size={16} />}
-                label="表格"
-                onClick={() => {
-                  setScopeMode("products");
-                  setViewMode("table");
-                }}
-              />
-            </div>
             <label className="inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-full bg-[#e4e9ea] px-5 text-sm font-semibold text-[#2d3435]">
               <ArrowUpDown size={17} />
               <select
@@ -354,7 +356,7 @@ export function PriceExplorer({
                 <option value="available_price">有货 + 低价</option>
                 <option value="price">价格从低到高</option>
                 <option value="updated">最近更新</option>
-                <option value="channels">渠道数量</option>
+                <option value="channels">{showingOffers ? "渠道名称" : "渠道数量"}</option>
               </select>
             </label>
             <button
@@ -403,7 +405,7 @@ export function PriceExplorer({
               value={stock}
               onChange={setStock}
               options={[
-                ["all", "全部报价"],
+                ["all", "全部库存"],
                 ["available", "有货"],
                 ["out_of_stock", "缺货"],
               ]}
@@ -539,7 +541,9 @@ function ProductTable({
                       {previewOffer?.sourceTitle || "暂无原始商品名"}
                     </span>
                   </td>
-                  <td className="px-5 py-4 text-[#5a6061]">{formatRelativeTime(product.latestSeenAt)}</td>
+                  <td className="px-5 py-4 text-[#5a6061]">
+                    <RelativeTime value={product.latestSeenAt} />
+                  </td>
                   <td className="px-5 py-4">
                     <Link
                       href={productHref}
@@ -564,10 +568,11 @@ function PlatformOfferTable({ rows }: { rows: PlatformOfferRow[] }) {
     <>
       <div className="hidden overflow-hidden rounded-lg bg-white shadow-[0_20px_55px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15 md:block">
         <div className="overflow-x-auto">
-          <table className="min-w-[960px] w-full border-collapse text-left text-sm">
+          <table className="min-w-[1120px] w-full border-collapse text-left text-sm">
             <thead className="bg-[#f2f4f4] text-[0.68rem] font-semibold text-[#5a6061]">
               <tr>
                 <TableHead>状态</TableHead>
+                <TableHead>平台</TableHead>
                 <TableHead>渠道</TableHead>
                 <TableHead>原始商品名</TableHead>
                 <TableHead>价格</TableHead>
@@ -576,13 +581,26 @@ function PlatformOfferTable({ rows }: { rows: PlatformOfferRow[] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#edf0f1]">
-              {rows.map(({ offer }) => {
+              {rows.map(({ offer, product }) => {
                 const available = isAvailable(offer);
 
                 return (
                   <tr key={offer.id} className={`transition hover:bg-[#f7f9f9] ${available ? "" : "bg-[#fbf7f6]"}`}>
                     <td className="px-5 py-4">
                       <OfferStatusBadge available={available} />
+                    </td>
+                    <td className="max-w-[190px] px-5 py-4">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f2f4f4] text-[#5a6061]">
+                          {platformIcon(product.platform)}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold text-[#202829]">{product.platform}</span>
+                          <span className="mt-1 block truncate text-xs text-[#5a6061]">
+                            {product.displayName}
+                          </span>
+                        </span>
+                      </span>
                     </td>
                     <td className="max-w-[220px] px-5 py-4">
                       <span className="block truncate font-semibold text-[#202829]">{sourceLabel(offer)}</span>
@@ -598,7 +616,9 @@ function PlatformOfferTable({ rows }: { rows: PlatformOfferRow[] }) {
                         {formatCurrency(offer.price, offer.currency)}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-[#5a6061]">{formatRelativeTime(offerTimestamp(offer))}</td>
+                    <td className="px-5 py-4 text-[#5a6061]">
+                      <RelativeTime value={offerTimestamp(offer)} />
+                    </td>
                     <td className="px-5 py-4">
                       <OfferAction offer={offer} available={available} />
                     </td>
@@ -610,21 +630,25 @@ function PlatformOfferTable({ rows }: { rows: PlatformOfferRow[] }) {
         </div>
       </div>
       <div className="grid gap-3 md:hidden">
-        {rows.map(({ offer }) => (
-          <PlatformOfferCard key={offer.id} offer={offer} />
+        {rows.map(({ offer, product }) => (
+          <PlatformOfferCard key={offer.id} offer={offer} product={product} />
         ))}
       </div>
     </>
   );
 }
 
-function PlatformOfferCard({ offer }: { offer: RawOffer }) {
+function PlatformOfferCard({ offer, product }: { offer: RawOffer; product: CanonicalProduct }) {
   const available = isAvailable(offer);
 
   return (
     <article className={`rounded-lg p-4 shadow-[0_16px_45px_rgba(45,52,53,0.04)] ring-1 ${available ? "bg-white ring-[#adb3b4]/15" : "bg-[#fbf7f6] ring-[#ead8d5]"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
+          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-[#5a6061]">
+            {platformIcon(product.platform)}
+            <span className="truncate">{product.platform} · {product.displayName}</span>
+          </div>
           <p className="truncate font-semibold text-[#202829]">{sourceLabel(offer)}</p>
           <p className="mt-1 line-clamp-2 text-sm leading-6 text-[#5a6061]">{offer.sourceTitle}</p>
         </div>
@@ -635,7 +659,9 @@ function PlatformOfferCard({ offer }: { offer: RawOffer }) {
           <p className={`text-2xl font-bold tracking-normal ${available ? "text-[#202829]" : "text-[#9b3328]"}`}>
             {formatCurrency(offer.price, offer.currency)}
           </p>
-          <p className="mt-1 text-xs text-[#5a6061]">{formatRelativeTime(offerTimestamp(offer))}</p>
+          <p className="mt-1 text-xs text-[#5a6061]">
+            <RelativeTime value={offerTimestamp(offer)} />
+          </p>
         </div>
         <OfferAction offer={offer} available={available} />
       </div>
@@ -678,6 +704,10 @@ function EmptyState({ text }: { text: string }) {
       <p className="mt-3 text-sm text-[#5a6061]">放宽筛选条件，或者提交新的可采集渠道。</p>
     </div>
   );
+}
+
+function RelativeTime({ value }: { value: string | null | undefined }) {
+  return <span suppressHydrationWarning>{formatRelativeTime(value)}</span>;
 }
 
 function ProductCard({
@@ -974,7 +1004,7 @@ function buildExplorerSearchParams({
   if (minPrice) params.set("min", minPrice);
   if (maxPrice) params.set("max", maxPrice);
   if (viewMode !== "table") params.set("view", viewMode);
-  if (scopeMode === "offers" && platform !== "全部") params.set("scope", scopeMode);
+  if (scopeMode === "offers") params.set("scope", scopeMode);
 
   return params;
 }
@@ -1027,9 +1057,12 @@ function buildActiveFilters({
 
 function buildTitle(platform: string, productType: string, showingOffers = false): string {
   const platformName = platform === "全部" ? "全平台" : platform;
-  if (showingOffers) return `${platformName} 全部报价`;
-
   const typeName = productType === "全部" ? "标准商品" : productTypeLabels[productType] || productType;
+
+  if (showingOffers) {
+    return productType === "全部" ? `${platformName} 全部报价` : `${platformName} ${typeName}全部报价`;
+  }
+
   return `${platformName} ${typeName}报价`;
 }
 
