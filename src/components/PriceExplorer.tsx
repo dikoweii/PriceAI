@@ -16,6 +16,7 @@ import {
   Table2,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { AppLogo } from "@/components/AppLogo";
@@ -81,6 +82,7 @@ export function PriceExplorer({
   data: ExplorerData;
   initialState?: ExplorerInitialState;
 }) {
+  const router = useRouter();
   const [query, setQuery] = useState(initialState.query ?? "");
   const [platform, setPlatform] = useState(initialState.platform ?? "全部");
   const [productType, setProductType] = useState(initialState.productType ?? "全部");
@@ -463,12 +465,12 @@ export function PriceExplorer({
               }`}
             >
               {products.map((product) => (
-                <ProductCard key={product.id} product={product} returnQuery={explorerQueryString} />
+              <ProductCard key={product.id} product={product} returnQuery={explorerQueryString} onIntent={router.prefetch} />
               ))}
             </div>
             {viewMode === "table" ? (
               <div className="hidden md:block">
-                <ProductTable products={products} returnQuery={explorerQueryString} />
+                <ProductTable products={products} returnQuery={explorerQueryString} onIntent={router.prefetch} />
               </div>
             ) : null}
           </>
@@ -487,9 +489,11 @@ export function PriceExplorer({
 function ProductTable({
   products,
   returnQuery,
+  onIntent,
 }: {
   products: ExplorerProductSummary[];
   returnQuery: string;
+  onIntent: (href: string) => void;
 }) {
   return (
     <div className="overflow-hidden rounded-lg bg-white shadow-[0_20px_55px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15">
@@ -517,7 +521,12 @@ function ProductTable({
               return (
                 <tr key={product.id} className="transition hover:bg-[#f7f9f9]">
                   <td className="max-w-[310px] px-5 py-4">
-                    <Link href={productHref} className="group flex min-w-0 items-center gap-3">
+                    <Link
+                      href={productHref}
+                      onMouseEnter={() => onIntent(productHref)}
+                      onFocus={() => onIntent(productHref)}
+                      className="group flex min-w-0 items-center gap-3"
+                    >
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f2f4f4] text-[#5e5e5e]">
                         {platformIcon(product.platform)}
                       </span>
@@ -564,6 +573,8 @@ function ProductTable({
                   <td className="px-5 py-4">
                     <Link
                       href={productHref}
+                      onMouseEnter={() => onIntent(productHref)}
+                      onFocus={() => onIntent(productHref)}
                       className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full bg-[#2d3435] px-3 text-xs font-semibold text-[#f8f8f8] transition hover:bg-[#1f2526]"
                     >
                       查看
@@ -730,9 +741,11 @@ function RelativeTime({ value }: { value: string | null | undefined }) {
 function ProductCard({
   product,
   returnQuery,
+  onIntent,
 }: {
   product: ExplorerProductSummary;
   returnQuery: string;
+  onIntent: (href: string) => void;
 }) {
   const previewOffer = product.lowestOffer;
   const flags = previewOffer ? collectOfferFlags(previewOffer).slice(0, 2) : [];
@@ -756,7 +769,7 @@ function ProductCard({
         />
       </div>
 
-      <Link href={productHref} className="block">
+      <Link href={productHref} onMouseEnter={() => onIntent(productHref)} onFocus={() => onIntent(productHref)} className="block">
         <h2 className="font-serif text-2xl font-semibold leading-tight tracking-normal text-[#202829] transition group-hover:text-[#5e5e5e]">
           {product.displayName}
         </h2>
@@ -796,6 +809,8 @@ function ProductCard({
       <div className="mt-auto pt-6">
         <Link
           href={productHref}
+          onMouseEnter={() => onIntent(productHref)}
+          onFocus={() => onIntent(productHref)}
           className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-[#5e5e5e] to-[#525252] px-5 text-sm font-semibold text-[#f8f8f8] transition hover:opacity-90"
         >
           查看对比

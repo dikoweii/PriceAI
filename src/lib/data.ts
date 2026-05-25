@@ -125,6 +125,26 @@ export async function getProductGroup(id: string) {
   return dashboard.products.find((product) => product.id === id || product.slug === id) || null;
 }
 
+export async function getPublicProductGroup(id: string) {
+  const dashboard = await getCachedDashboardData();
+  return dashboard.products.find((product) => product.id === id || product.slug === id) || null;
+}
+
+export async function getPublicProductSummary(id: string) {
+  const product = await getPublicProductGroup(id);
+  return product ? toExplorerProductSummary(product) : null;
+}
+
+export async function listPublicProductOffers(id: string) {
+  const product = await getPublicProductGroup(id);
+
+  return {
+    offers: product?.offers ?? [],
+    total: product?.offers.length ?? 0,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 export async function listPublicOffers(filters: OfferListFilters = {}) {
   const dashboard = await getCachedDashboardData();
   const products = dashboard.products.map(toExplorerProductSummary);
