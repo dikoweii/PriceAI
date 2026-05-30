@@ -24,6 +24,10 @@
 
 ---
 
+<p align="center">
+  <img src="docs/assets/priceai-screenshot.png" alt="PriceAI product screenshot" width="100%" />
+</p>
+
 ## 1. 为什么做 PriceAI
 
 买 AI 订阅时，价格经常不是一个清楚的数字。
