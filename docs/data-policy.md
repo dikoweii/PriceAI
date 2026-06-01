@@ -230,7 +230,7 @@ PriceAI 的核心不是维护一堆人工报价，而是尽量自动、稳定地
 
 说明：
 
-- Cursor、Kiro、Suno、Windsurf、X Premium、Apple ID、Telegram、Facebook、接码、虚拟卡、代理服务、教程等，第一阶段都先进入其他商品。
+- 其他分类下细分接码 / 验证服务、虚拟卡、其他工具账号和其他商品。Cursor、Kiro、Suno、Windsurf、X Premium、Apple ID、Telegram、Facebook 等先进入其他工具账号或其他商品；接码、虚拟卡、代理服务、教程等不应污染 ChatGPT、Claude、Gemini 等主平台。
 - 后续如果某个其他品类数量变多、并且确实需要比价，再单独提升为标准商品。
 
 ## 6. 分类规则优先级

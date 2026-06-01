@@ -7,7 +7,6 @@ export const platformOptions = [
   "Grok",
   "API/CDK",
   "邮箱",
-  "虚拟卡",
   "其他",
 ] as const;
 
@@ -16,7 +15,9 @@ export const productTypeOptions = [
   "成品账号",
   "邮箱/账号",
   "API额度",
+  "接码/验证",
   "虚拟卡",
+  "工具账号",
   "其他",
 ] as const;
 
@@ -188,11 +189,31 @@ export const canonicalCatalog: CanonicalProduct[] = [
     id: "virtual-card",
     slug: "virtual-card",
     displayName: "虚拟卡",
-    platform: "虚拟卡",
+    platform: "其他",
     productType: "虚拟卡",
     spec: "VISA / MasterCard",
     summary: "VISA、MasterCard、0刀卡、1刀卡、BIN 卡或虚拟信用卡。",
-    aliases: ["visa", "mastercard", "虚拟卡", "虚拟信用卡", "0刀卡", "1刀卡", "bin 卡", "485954"],
+    aliases: ["visa", "mastercard", "虚拟卡", "虚拟信用卡", "0刀卡", "1刀卡", "bin 卡", "485954", "paypal 虚拟卡"],
+  },
+  {
+    id: "phone-verification",
+    slug: "phone-verification",
+    displayName: "接码 / 验证服务",
+    platform: "其他",
+    productType: "接码/验证",
+    spec: "短信 / 手机号验证",
+    summary: "手机接码、短信验证码、一次性验证、注册辅助验证等服务。",
+    aliases: ["接码", "手机接码", "短信验证", "验证码", "一次性接码", "手机号验证"],
+  },
+  {
+    id: "other-tool-account",
+    slug: "other-tool-account",
+    displayName: "其他工具账号",
+    platform: "其他",
+    productType: "工具账号",
+    spec: "AI / SaaS 工具账号",
+    summary: "Windsurf、Kiro、Cursor、Suno、OpenClaw 等非主平台工具账号或权益。",
+    aliases: ["cursor", "kiro", "windsurf", "suno", "openclaw", "工具账号"],
   },
   {
     id: "other-product",
@@ -201,8 +222,8 @@ export const canonicalCatalog: CanonicalProduct[] = [
     platform: "其他",
     productType: "其他",
     spec: "其他",
-    summary: "Cursor、Kiro、Suno、Windsurf、X Premium、社交账号、接码、代理、教程等。",
-    aliases: ["other", "cursor", "kiro", "suno", "windsurf"],
+    summary: "教程、代理、社交账号、流量服务、资料、无法识别商品等。",
+    aliases: ["other", "教程", "代理", "社交账号", "资料"],
   },
 ];
 
@@ -241,12 +262,20 @@ export function classifyOffer(
   const value = normalizeTitle(title);
   const contextValue = normalizeTitle([normalizeTags(context.tags), context.categorySlug].filter(Boolean).join(" "));
 
+  if (isVerificationService(value)) {
+    return getCanonicalProduct("phone-verification");
+  }
+
   if (isVirtualCardProduct(value)) {
     return getCanonicalProduct("virtual-card");
   }
 
   if (isSupportService(value)) {
     return getCanonicalProduct("other-product");
+  }
+
+  if (isOtherTool(value)) {
+    return getCanonicalProduct("other-tool-account");
   }
 
   if (isApiProduct(value)) {
@@ -298,21 +327,17 @@ export function classifyOffer(
       return getCanonicalProduct("chatgpt-pro-5x");
     }
 
-    if (matches(value, ["plus"])) {
-      return getCanonicalProduct("chatgpt-plus");
+    if (matches(value, ["free", "普号", "白号", "普通号", "空白账号", "长效"]) || isNegatedPlus(value)) {
+      return getCanonicalProduct("chatgpt-free-account");
     }
 
     if (isChatGptTeam(value)) {
       return getCanonicalProduct("chatgpt-team-business");
     }
 
-    if (matches(value, ["free", "普号", "白号", "普通号", "空白账号", "长效"])) {
-      return getCanonicalProduct("chatgpt-free-account");
+    if (matches(value, ["plus"])) {
+      return getCanonicalProduct("chatgpt-plus");
     }
-  }
-
-  if (isOtherTool(value)) {
-    return getCanonicalProduct("other-product");
   }
 
   if (matches(value, ["codex", "api", "cdk", "token", "额度", "中转", "余额"])) {
@@ -497,11 +522,23 @@ function normalizeTags(tags: string[] | string | null | undefined): string {
 }
 
 function isSupportService(value: string): boolean {
-  if (matches(value, ["教程", "电话卡", "手机套餐", "paypal接码", "验证码", "代理服务", "并发数"])) {
+  if (matches(value, ["教程", "电话卡", "手机套餐", "代理服务", "并发数", "安装版", "安装教程", "登陆教程", "登录教程"])) {
     return true;
   }
 
-  return value.includes("接码") && !matches(value, ["chatgpt", "gpt", "openai", "claude", "gemini", "grok"]);
+  return false;
+}
+
+function isVerificationService(value: string): boolean {
+  if (matches(value, ["已接码", "已手机接码", "已接码验证", "已手机接码验证"])) {
+    return false;
+  }
+
+  if (matches(value, ["接码", "收码", "短信验证", "验证码", "手机号验证", "手机验证", "一次性验证", "单次接码"])) {
+    return true;
+  }
+
+  return matches(value, ["验证"]) && matches(value, ["手机号", "手机号码", "短信", "接码"]);
 }
 
 function isOtherTool(value: string): boolean {
@@ -510,6 +547,9 @@ function isOtherTool(value: string): boolean {
     "cursor",
     "kiro",
     "windsurf",
+    "wind surf",
+    "openclaw",
+    "open claw",
     "x premium",
     "twitter premium",
     "telegram",
@@ -517,6 +557,10 @@ function isOtherTool(value: string): boolean {
     "苹果 id",
     "apple id",
   ]);
+}
+
+function isNegatedPlus(value: string): boolean {
+  return matches(value, ["非plus", "非 plus", "不是plus", "不是 plus", "不含plus", "不含 plus", "无plus", "无 plus"]);
 }
 
 function isApiProduct(value: string): boolean {
@@ -530,7 +574,9 @@ function isApiProduct(value: string): boolean {
 }
 
 function isVirtualCardProduct(value: string): boolean {
-  if (matches(value, ["visa", "mastercard", "虚拟卡", "虚拟信用卡", "0刀卡", "1刀卡", "bin 卡", "485954"])) {
+  if (matches(value, ["paypal接码", "paypal 接码"])) return false;
+
+  if (matches(value, ["visa", "mastercard", "虚拟卡", "虚拟信用卡", "0刀卡", "1刀卡", "bin 卡", "485954", "美国虚拟卡", "paypal 美国虚拟卡"])) {
     return true;
   }
 

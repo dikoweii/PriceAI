@@ -1,4 +1,4 @@
-import { CreditCard, Layers3 } from "lucide-react";
+import { Layers3 } from "lucide-react";
 import Image from "next/image";
 
 const iconByPlatform: Record<string, string> = {
@@ -19,10 +19,6 @@ export function BrandIcon({
   className?: string;
 }) {
   const src = iconByPlatform[platform];
-
-  if (platform === "虚拟卡") {
-    return <CreditCard className={`${className} shrink-0 text-[#2d3435]`} />;
-  }
 
   if (src) {
     return (

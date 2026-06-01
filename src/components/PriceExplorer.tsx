@@ -66,7 +66,9 @@ const productTypeLabels: Record<string, string> = {
   成品号: "成品账号",
   "邮箱/账号": "邮箱/账号",
   API额度: "API额度",
+  "接码/验证": "接码/验证",
   虚拟卡: "虚拟卡",
+  工具账号: "工具账号",
   其他: "其他",
 };
 

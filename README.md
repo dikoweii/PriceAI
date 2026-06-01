@@ -87,7 +87,7 @@ PriceAI 的核心不是简单堆商品，而是把“原始报价”整理成“
 
 ## 当前能力
 
-- **标准商品比价**：按 ChatGPT、Claude、Gemini、Grok、API/CDK、邮箱、虚拟卡等平台整理报价。
+- **标准商品比价**：按 ChatGPT、Claude、Gemini、Grok、API/CDK、邮箱、其他等平台整理报价；其他类下包含接码、虚拟卡、其他工具账号和其他商品。
 - **有货 / 缺货**：前台只保留两个明确状态，缺货弱化展示。
 - **全部报价视图**：可以直接查看某个平台下所有原始报价。
 - **详情对比页**：展示渠道、原始标题、价格、更新时间和原站购买入口。
@@ -148,7 +148,7 @@ npm run collect:browser -- --url https://aisou.pro/ --password your-admin-passwo
 ## Roadmap
 
 - 提高采集稳定性，减少失败来源，完善重试和最近确认时间展示。
-- 优化 ChatGPT、Claude、Gemini、Grok、邮箱、API/CDK、虚拟卡等分类规则。
+- 优化 ChatGPT、Claude、Gemini、Grok、邮箱、API/CDK、其他辅助商品等分类规则。
 - 让用户提交渠道后的解析、试采集、待办和纳入采集形成闭环。
 - 在不做担保的前提下，补充更清晰的交付方式、套餐差异和风险提示。
 - 继续验证它是否适合长期运营、开源协作和社区共建。
