@@ -5,7 +5,7 @@ import { requireAdminPassword } from "@/lib/env";
 const schema = z.object({
   id: z.string().min(1),
   name: z.string().trim().max(200).optional().nullable(),
-  collectionMethod: z.enum(["aibijia_json", "browser", "http", "manual"]).optional(),
+  collectionMethod: z.enum(["public_json", "browser", "http", "manual"]).optional(),
   collectorKind: z.enum(["auto", "kami", "dujiao", "shopApi", "xiaoheiwan", "opensoraHtml", "makerichHtml", "beibeiHtml", "browser", "unsupported"]).nullable().optional(),
 });
 

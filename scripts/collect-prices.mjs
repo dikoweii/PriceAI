@@ -643,7 +643,7 @@ async function loadTargets() {
   }
 
   return sources
-    .filter((source) => source.id !== "aibijia")
+    .filter((source) => source.collection_method !== "public_json")
     .map((source) => buildTarget(source, rawBySource.get(source.id) || []));
 }
 

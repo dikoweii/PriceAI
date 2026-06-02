@@ -10,7 +10,6 @@
     "build": "node_modules/node/bin/node node_modules/next/dist/bin/next build --webpack",
     "start": "node_modules/node/bin/node node_modules/next/dist/bin/next start",
     "lint": "node_modules/node/bin/node node_modules/eslint/bin/eslint.js",
-    "import:aibijia": "node_modules/node/bin/node scripts/import-aibijia.mjs",
     "collect:prices": "node_modules/node/bin/node scripts/collect-prices.mjs",
     "collect:browser": "node_modules/node/bin/node scripts/collect-browser.mjs",
     "migrate:remote:freshness": "node_modules/node/bin/node scripts/apply-remote-migration.mjs",

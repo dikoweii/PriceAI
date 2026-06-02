@@ -270,7 +270,7 @@ export function PriceExplorer({
       <main className="mx-auto max-w-[1500px] px-5 py-10 sm:px-8 lg:py-12">
         {!data.configured ? (
           <div className="mb-8 rounded-lg bg-[#fff7e8] px-5 py-4 text-sm text-[#6a4b16] shadow-[0_18px_50px_rgba(45,52,53,0.04)]">
-            当前使用内置演示数据。配置 Supabase 后，可在后台导入 Aibijia 和保存真实采集结果。
+            当前使用内置演示数据。配置 Supabase 后，可在后台维护渠道并保存真实采集结果。
           </div>
         ) : null}
 

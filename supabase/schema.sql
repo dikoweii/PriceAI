@@ -86,7 +86,7 @@ set
     when exists (
       select 1 from sources
       where sources.id = raw_offers.source_id
-        and sources.collection_method = 'aibijia_json'
+        and sources.collection_method = 'public_json'
     ) then 40
     else 90
   end,
@@ -94,7 +94,7 @@ set
     when exists (
       select 1 from sources
       where sources.id = raw_offers.source_id
-        and sources.collection_method = 'aibijia_json'
+        and sources.collection_method = 'public_json'
     ) then 0.55
     else 0.90
   end,

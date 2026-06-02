@@ -36,12 +36,13 @@ npm install
 npm run dev
 ```
 
-## 初始数据导入
+## 初始数据
 
-导入 Aibijia 公开数据：
+可以先执行 `supabase/seed.sql` 写入演示来源，再在后台维护自己的渠道来源。
+配置好来源后，通过采集任务写入真实报价：
 
 ```bash
-npm run import:aibijia -- --password your-admin-password
+npm run collect:prices -- --all --post
 ```
 
-导入完成后，可以在后台查看来源、报价、标准商品和采集日志。
+采集完成后，可以在后台查看来源、报价、标准商品和采集日志。

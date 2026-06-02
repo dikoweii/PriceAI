@@ -5,7 +5,7 @@ const HOUR = 60 * MINUTE;
 const OFFER_VISIBLE_HOURS = 24;
 
 export function freshnessFields(input: {
-  method: "aibijia_json" | "browser" | "http" | "manual";
+  method: "public_json" | "browser" | "http" | "manual";
   status: RawOffer["status"];
   verifiedAt: string;
 }) {
@@ -13,13 +13,13 @@ export function freshnessFields(input: {
     manual: 95,
     browser: 90,
     http: 85,
-    aibijia_json: 40,
+    public_json: 40,
   } satisfies Record<string, number>;
   const confidenceByMethod = {
     manual: 0.95,
     browser: 0.9,
     http: 0.85,
-    aibijia_json: 0.55,
+    public_json: 0.55,
   } satisfies Record<string, number>;
   const sourcePriority = priorityByMethod[input.method];
   const freshnessStatus: FreshnessStatus = "fresh";

@@ -283,21 +283,6 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
     }
   }
 
-  async function importAibijia() {
-    setLoadingAction("import-aibijia");
-    setGlobalMessage({ type: "info", text: "正在导入 Aibijia 公开报价..." });
-    const result = await request("/api/admin/import-aibijia", password, {});
-    setLoadingAction(null);
-    if (result.ok) {
-      setGlobalMessage({
-        type: "success",
-        text: `导入完成：${result.result?.offerCount || 0} 条报价，合并到 ${result.result?.sourceCount || 0} 个渠道源，并迁移 ${result.result?.migratedLegacyOfferCount || 0} 条旧报价。刷新页面即可看到最新数据。`,
-      });
-    } else {
-      setGlobalMessage({ type: "error", text: result.message || "导入失败。" });
-    }
-  }
-
   async function reclassifyOffers() {
     setLoadingAction("reclassify-offers");
     setGlobalMessage({ type: "info", text: "正在按最新标准商品规则重建分类..." });
@@ -1142,16 +1127,6 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
                 <section className="space-y-4">
                   <Panel title="数据同步" icon={<RefreshCcw size={17} />}>
                     <ActionRow
-                      title="Aibijia 公开报价"
-                      description="从 data.aibijia.org 同步商品、渠道和报价。"
-                      buttonLabel="导入 Aibijia"
-                      buttonIcon={<RefreshCcw size={15} />}
-                      loading={loadingAction === "import-aibijia"}
-                      onClick={importAibijia}
-                      primary
-                    />
-                    <Divider />
-                    <ActionRow
                       title="重建标准商品分类"
                       description="按最新粗粒度规则重新归类已有报价。"
                       buttonLabel="重建分类"
@@ -1292,7 +1267,7 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
                       <select name="collectionMethod" className="h-10 w-full rounded-lg border border-[#adb3b4]/40 bg-white px-3 text-sm outline-none transition-colors focus:border-[#2d3435]">
                         <option value="http">自动接口采集</option>
                         <option value="browser">浏览器采集</option>
-                        <option value="aibijia_json">Aibijia 数据</option>
+                        <option value="manual">采集器待办</option>
                       </select>
                     </label>
                     <label className="block">
@@ -2287,7 +2262,8 @@ function stringMeta(meta: Record<string, unknown>, key: string): string | null {
 
 function collectionMethodMeta(meta: Record<string, unknown>, key: string): CollectionMethod | null {
   const value = stringMeta(meta, key);
-  return value === "aibijia_json" || value === "browser" || value === "http" || value === "manual" ? value : null;
+  if (value === "public_json" || value === "browser" || value === "http" || value === "manual") return value;
+  return null;
 }
 
 function collectorKindMeta(meta: Record<string, unknown>, key: string): CollectorKind | null {
@@ -2305,11 +2281,11 @@ function isRunnableCollector(value: CollectorKind | null): boolean {
 
 function collectionMethodLabel(value: string): string {
   const labels: Record<string, string> = {
-    aibijia_json: "Aibijia",
+    public_json: "公开 JSON",
     browser: "浏览器",
     http: "自动",
     manual: "待开发",
-    aibijia_import: "Aibijia",
+    public_json_import: "公开 JSON",
   };
   return labels[value] || value;
 }
@@ -2401,7 +2377,6 @@ function sourceHasKnownAutoCollector(source: Source): boolean {
 }
 
 function resolvedCollectionMethod(source: Source): CollectionMethod {
-  if (source.collectionMethod === "aibijia_json") return "aibijia_json";
   const collector = resolvedCollectorKind(source);
   if (isRunnableCollector(collector)) return "http";
   if (collector === "browser") return "browser";
@@ -2580,7 +2555,7 @@ function offerStatusMeta(meta: Record<string, unknown>, key: string): OfferStatu
 
 function classifySourceGroup(source: Source): string {
   const text = `${source.id} ${source.name} ${source.baseUrl || ""} ${source.entryUrl} ${source.notes || ""}`.toLowerCase();
-  if (source.id === "aibijia" || source.collectionMethod === "aibijia_json") return "数据入口";
+  if (source.collectionMethod === "public_json") return "数据入口";
   if (text.includes("ai666.dnxb.cc") || text.includes("gmail批发")) return "自有配置";
   if (text.includes("ldxp") || text.includes("pay.ldxp.cn")) return "LDXP 系";
   if (
@@ -2591,7 +2566,6 @@ function classifySourceGroup(source: Source): string {
     text.includes("kxandyou")
   ) return "Auto Subscribe 系";
   if (source.collectionMethod === "http") return "HTTP 优先";
-  if (text.includes("aibijia 已发现")) return "独立渠道";
   return "自有配置";
 }
 

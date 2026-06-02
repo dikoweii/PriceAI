@@ -16,7 +16,7 @@ set
     when exists (
       select 1 from sources
       where sources.id = raw_offers.source_id
-        and sources.collection_method = 'aibijia_json'
+        and sources.collection_method = 'public_json'
     ) then 40
     else 90
   end,
@@ -24,7 +24,7 @@ set
     when exists (
       select 1 from sources
       where sources.id = raw_offers.source_id
-        and sources.collection_method = 'aibijia_json'
+        and sources.collection_method = 'public_json'
     ) then 0.55
     else 0.90
   end,
@@ -34,7 +34,7 @@ set
     when exists (
       select 1 from sources
       where sources.id = raw_offers.source_id
-        and sources.collection_method = 'aibijia_json'
+        and sources.collection_method = 'public_json'
     ) then 'low_confidence'
     when coalesce(verified_at, last_seen_at, captured_at, source_updated_at) < now() - interval '10 minutes' then 'low_confidence'
     else 'available'
@@ -52,7 +52,7 @@ set
         when exists (
           select 1 from sources
           where sources.id = raw_offers.source_id
-            and sources.collection_method = 'aibijia_json'
+            and sources.collection_method = 'public_json'
         ) then interval '30 minutes'
         else interval '2 hours'
       end

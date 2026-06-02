@@ -1190,7 +1190,7 @@ function getSuggestedSourceId(meta: Record<string, unknown>): string | null {
 
 function getSuggestedCollectionMethod(meta: Record<string, unknown>): CollectionMethod | null {
   const value = typeof meta.suggested_collection_method === "string" ? meta.suggested_collection_method : "";
-  return value === "aibijia_json" || value === "browser" || value === "http" || value === "manual"
+  return value === "public_json" || value === "browser" || value === "http" || value === "manual"
     ? value
     : null;
 }

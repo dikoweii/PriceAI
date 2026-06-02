@@ -4,7 +4,7 @@ create index if not exists sources_collector_kind_idx on sources(collector_kind)
 
 update sources
 set collector_kind = case
-  when collection_method = 'aibijia_json' then 'unsupported'
+  when collection_method = 'public_json' then 'unsupported'
   when lower(coalesce(base_url, entry_url, '')) like '%ai666.dnxb.cc%' then 'kami'
   when lower(coalesce(base_url, entry_url, '')) like '%aisou.pro%' then 'kami'
   when lower(coalesce(base_url, entry_url, '')) like '%caowo.store%' then 'kami'

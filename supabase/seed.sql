@@ -1,6 +1,5 @@
 insert into sources (id, name, base_url, entry_url, collection_method, collector_kind, enabled, notes)
 values
-  ('aibijia', 'Aibijia 公共报价', 'https://aibijia.org', 'https://data.aibijia.org/products.json', 'aibijia_json', 'unsupported', true, '公开 products.json，同步为首版参考渠道。'),
   ('aisou-pro', 'Aisou智充', 'https://aisou.pro', 'https://aisou.pro/', 'http', 'kami', true, '公开接口自动采集。'),
   ('auto-subscribe', 'Auto Subscribe', 'https://shop.auto-subscribe.com', 'https://shop.auto-subscribe.com/', 'http', 'dujiao', true, '公开接口自动采集。'),
   ('qxvx-pay', 'QXVX Pay', 'https://pay.qxvx.cn', 'https://pay.qxvx.cn/', 'http', 'shopApi', true, 'ShopApi 自动采集。'),

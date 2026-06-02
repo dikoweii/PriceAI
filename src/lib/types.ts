@@ -8,7 +8,7 @@ export type EffectiveOfferStatus =
 export type FreshnessStatus = "fresh" | "aging" | "stale" | "expired" | "failed";
 
 export type CollectionMethod =
-  | "aibijia_json"
+  | "public_json"
   | "browser"
   | "http"
   | "manual";
@@ -124,7 +124,7 @@ export type CrawlRun = {
   id: string;
   sourceId?: string | null;
   sourceName?: string | null;
-  mode: CollectionMethod | "aibijia_import";
+  mode: CollectionMethod | "public_json_import" | "legacy_json_import";
   status: "success" | "partial" | "failed";
   startedAt: string;
   finishedAt?: string | null;
