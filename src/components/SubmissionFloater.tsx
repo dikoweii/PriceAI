@@ -129,13 +129,16 @@ export function SubmissionFloater() {
             {status !== "success" ? (
               <form ref={formRef} onSubmit={submit} className="mt-4 space-y-3">
                 <Field label="渠道链接" required>
+                  <p className="mb-2 text-xs leading-5 text-[#5a6061]">
+                    请优先提交店铺首页或渠道入口，不建议提交单个商品链接；如果只找到了商品链接，也可以提交，我们会尽量识别对应店铺入口。
+                  </p>
                   <textarea
                     name="urlsText"
                     rows={5}
                     required
                     value={urlsText}
                     onChange={(event) => setUrlsText(event.target.value)}
-                    placeholder={"每行一个链接，也可以直接粘贴一整段文字\nhttps://example.com/\nhttps://example.com/shop/demo"}
+                    placeholder={"每行一个店铺入口链接，也可以直接粘贴一整段文字\nhttps://example.com/\nhttps://example.com/shop/demo"}
                     className="w-full resize-y rounded-lg border border-stone-300 bg-stone-50 px-3 py-2 text-sm outline-none focus:border-[#2d3435]"
                   />
                 </Field>

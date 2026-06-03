@@ -98,6 +98,8 @@ const collectorKindOptions: Array<[CollectorKind, string]> = [
   ["unsupported", "暂不支持"],
 ];
 
+const OFFER_EMERGENCY_PAGE_SIZE = 50;
+
 /* ─── Main Component ─── */
 
 export function AdminConsole({ data }: { data: AdminSummary }) {
@@ -120,6 +122,8 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
   const [deletedSourceIds, setDeletedSourceIds] = useState<Set<string>>(new Set());
   const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
   const [offerSearchQuery, setOfferSearchQuery] = useState("");
+  const [visibleOfferLimit, setVisibleOfferLimit] = useState(OFFER_EMERGENCY_PAGE_SIZE);
+  const [hiddenOfferLimit, setHiddenOfferLimit] = useState(OFFER_EMERGENCY_PAGE_SIZE);
   const listRef = useRef<HTMLDivElement>(null);
 
   const reviewSubmissions = useMemo(
@@ -226,13 +230,21 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
     }
     return map;
   }, [data.rawOffers, sourceStatsById, sources]);
-  const filteredVisibleOffers = useMemo(
-    () => filterAdminOffers(data.rawOffers, offerSearchQuery).slice(0, 30),
+  const matchedVisibleOffers = useMemo(
+    () => filterAdminOffers(data.rawOffers, offerSearchQuery),
     [data.rawOffers, offerSearchQuery],
   );
-  const filteredHiddenOffers = useMemo(
-    () => filterAdminOffers(data.hiddenRawOffers || [], offerSearchQuery).slice(0, 30),
+  const matchedHiddenOffers = useMemo(
+    () => filterAdminOffers(data.hiddenRawOffers || [], offerSearchQuery),
     [data.hiddenRawOffers, offerSearchQuery],
+  );
+  const filteredVisibleOffers = useMemo(
+    () => matchedVisibleOffers.slice(0, visibleOfferLimit),
+    [matchedVisibleOffers, visibleOfferLimit],
+  );
+  const filteredHiddenOffers = useMemo(
+    () => matchedHiddenOffers.slice(0, hiddenOfferLimit),
+    [matchedHiddenOffers, hiddenOfferLimit],
   );
   const sourceGroups = useMemo(() => groupSources(sources), [sources]);
   const selectedSources = useMemo(
@@ -736,12 +748,13 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
 
   async function approveSubmission(
     submission: ChannelSubmission,
-    overrides: { name?: string; collectionMethod?: CollectionMethod; collectorKind?: CollectorKind },
+    overrides: { name?: string; sourceUrl?: string; collectionMethod?: CollectionMethod; collectorKind?: CollectorKind },
   ) {
     setLoadingAction(`approve-${submission.id}`);
     const result = await request("/api/admin/submissions/approve", password, {
       id: submission.id,
       name: overrides.name?.trim() || null,
+      sourceUrl: overrides.sourceUrl?.trim() || null,
       collectionMethod: overrides.collectionMethod || "manual",
       collectorKind: overrides.collectorKind || "auto",
     });
@@ -847,6 +860,7 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
       const result = await request("/api/admin/submissions/approve", password, {
         id: item.id,
         name: item.name || stringMeta(meta, "suggested_source_name") || item.parsedTitle || null,
+        sourceUrl: stringMeta(meta, "canonical_source_url") || item.url,
         collectionMethod: method,
         collectorKind: suggestedCollector,
       });
@@ -1451,7 +1465,11 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
                         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#adb3b4]" />
                         <input
                           value={offerSearchQuery}
-                          onChange={(event) => setOfferSearchQuery(event.target.value)}
+                          onChange={(event) => {
+                            setOfferSearchQuery(event.target.value);
+                            setVisibleOfferLimit(OFFER_EMERGENCY_PAGE_SIZE);
+                            setHiddenOfferLimit(OFFER_EMERGENCY_PAGE_SIZE);
+                          }}
                           placeholder="搜索商品、渠道或链接"
                           className="h-9 w-full rounded-lg border border-[#adb3b4]/30 bg-white pl-9 pr-3 text-sm outline-none transition-colors focus:border-[#2d3435]"
                         />
@@ -1462,20 +1480,24 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
                         title="当前可见报价"
                         emptyText="没有匹配的可见报价。"
                         offers={filteredVisibleOffers}
+                        totalCount={matchedVisibleOffers.length}
                         loadingAction={loadingAction}
                         actionLabel="下架"
                         actionTone="danger"
                         hiddenAction
+                        onLoadMore={() => setVisibleOfferLimit((value) => value + OFFER_EMERGENCY_PAGE_SIZE)}
                         onToggleHidden={toggleOfferHidden}
                       />
                       <OfferEmergencyList
                         title="手动下架报价"
                         emptyText="没有匹配的手动下架报价。"
                         offers={filteredHiddenOffers}
+                        totalCount={matchedHiddenOffers.length}
                         loadingAction={loadingAction}
                         actionLabel="恢复"
                         actionTone="success"
                         hiddenAction={false}
+                        onLoadMore={() => setHiddenOfferLimit((value) => value + OFFER_EMERGENCY_PAGE_SIZE)}
                         onToggleHidden={toggleOfferHidden}
                       />
                     </div>
@@ -1523,7 +1545,7 @@ function SubmissionCard({
   feedback: RowFeedback | null;
   onToggleExpand: () => void;
   onToggleSelect: () => void;
-  onApprove: (submission: ChannelSubmission, overrides: { name?: string; collectionMethod?: CollectionMethod; collectorKind?: CollectorKind }) => void;
+  onApprove: (submission: ChannelSubmission, overrides: { name?: string; sourceUrl?: string; collectionMethod?: CollectionMethod; collectorKind?: CollectorKind }) => void;
   onProbe: (submission: ChannelSubmission) => void;
   onTodo: (submission: ChannelSubmission, note: string) => void;
   onReject: (submission: ChannelSubmission, note: string) => void;
@@ -1549,6 +1571,7 @@ function SubmissionCard({
 
   const [mode, setMode] = useState<"idle" | "approve" | "todo" | "reject">("idle");
   const [name, setName] = useState(submission.name || suggestedName || submission.parsedTitle || "");
+  const [sourceUrl, setSourceUrl] = useState(canonicalSourceUrl || submission.url);
   const [collectionMethod, setCollectionMethod] = useState<CollectionMethod>(suggestedMethod || "http");
   const [collectorKind, setCollectorKind] = useState<CollectorKind>(suggestedCollector || "auto");
   const [collectorNote, setCollectorNote] = useState(
@@ -1651,7 +1674,7 @@ function SubmissionCard({
               <button
                 type="button"
                 disabled={approveLoading}
-                onClick={(e) => { e.stopPropagation(); onApprove(submission, { name, collectionMethod: recommendedMethod, collectorKind: recommendedCollector }); }}
+                onClick={(e) => { e.stopPropagation(); onApprove(submission, { name, sourceUrl, collectionMethod: recommendedMethod, collectorKind: recommendedCollector }); }}
                 className="inline-flex h-8 items-center gap-1 rounded-lg bg-[#2f7a4b] px-3 text-xs font-medium text-white transition-colors hover:bg-[#256a3d] disabled:opacity-60"
               >
                 {approveLoading ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
@@ -1733,7 +1756,7 @@ function SubmissionCard({
                 <button
                   type="button"
                   disabled={approveLoading}
-                  onClick={() => onApprove(submission, { name, collectionMethod: recommendedMethod, collectorKind: recommendedCollector })}
+                  onClick={() => onApprove(submission, { name, sourceUrl, collectionMethod: recommendedMethod, collectorKind: recommendedCollector })}
                   className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#2f7a4b] px-4 text-xs font-medium text-white transition-colors hover:bg-[#256a3d] disabled:opacity-60"
                 >
                   {approveLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
@@ -1816,6 +1839,18 @@ function SubmissionCard({
                 />
               </label>
               <label className="block text-xs">
+                <span className="mb-1 block font-medium text-[#5a6061]">渠道入口链接</span>
+                <input
+                  value={sourceUrl}
+                  onChange={(e) => setSourceUrl(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-[#adb3b4]/40 bg-white px-3 text-sm outline-none transition-colors focus:border-[#2d3435]"
+                  placeholder={canonicalSourceUrl || submission.url}
+                />
+                <span className="mt-1 block text-[11px] leading-4 text-[#5a6061]">
+                  用户误提交商品链接时，在这里填真正的店铺入口；审核通过会按这个入口入库。
+                </span>
+              </label>
+              <label className="block text-xs">
                 <span className="mb-1 block font-medium text-[#5a6061]">采集方式</span>
                 <select
                   value={collectionMethod}
@@ -1842,7 +1877,7 @@ function SubmissionCard({
                 <button
                   type="button"
                   disabled={approveLoading}
-                  onClick={() => onApprove(submission, { name, collectionMethod, collectorKind })}
+                  onClick={() => onApprove(submission, { name, sourceUrl, collectionMethod, collectorKind })}
                   className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#2f7a4b] px-4 text-xs font-medium text-white transition-colors hover:bg-[#256a3d] disabled:opacity-60"
                 >
                   {approveLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
@@ -2401,19 +2436,23 @@ function OfferEmergencyList({
   title,
   emptyText,
   offers,
+  totalCount,
   loadingAction,
   actionLabel,
   actionTone,
   hiddenAction,
+  onLoadMore,
   onToggleHidden,
 }: {
   title: string;
   emptyText: string;
   offers: RawOffer[];
+  totalCount: number;
   loadingAction: string | null;
   actionLabel: string;
   actionTone: "danger" | "success";
   hiddenAction: boolean;
+  onLoadMore: () => void;
   onToggleHidden: (offer: RawOffer, hidden: boolean) => void;
 }) {
   const actionClass =
@@ -2425,47 +2464,60 @@ function OfferEmergencyList({
     <div className="overflow-hidden rounded-lg border border-[#adb3b4]/20">
       <div className="flex items-center justify-between border-b border-[#adb3b4]/15 bg-[#f2f4f4] px-3 py-2.5">
         <span className="text-xs font-semibold text-[#5a6061]">{title}</span>
-        <span className="text-xs text-[#adb3b4]">{offers.length} 条</span>
+        <span className="text-xs text-[#adb3b4]">显示 {offers.length} / {totalCount} 条</span>
       </div>
       {offers.length ? (
-        <div className="max-h-[520px] divide-y divide-[#adb3b4]/15 overflow-auto">
-          {offers.map((offer) => {
-            const actionLoading = loadingAction === `${hiddenAction ? "hide" : "restore"}-offer-${offer.id}`;
-            return (
-              <div key={offer.id} className="grid gap-3 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_92px] sm:items-center">
-                <div className="min-w-0">
-                  <p className="line-clamp-2 text-sm font-medium text-[#2d3435]">{offer.sourceTitle}</p>
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[#adb3b4]">
-                    <span>{offer.sourceStoreName || offer.sourceName || "未记录渠道"}</span>
-                    <span>{formatCurrency(offer.price, offer.currency)}</span>
-                    <span>{offer.status === "out_of_stock" ? "缺货" : "有货"}</span>
-                    {offer.verifiedAt && <span>{formatRelativeTime(offer.verifiedAt)}</span>}
+        <>
+          <div className="max-h-[520px] divide-y divide-[#adb3b4]/15 overflow-auto">
+            {offers.map((offer) => {
+              const actionLoading = loadingAction === `${hiddenAction ? "hide" : "restore"}-offer-${offer.id}`;
+              return (
+                <div key={offer.id} className="grid gap-3 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_92px] sm:items-center">
+                  <div className="min-w-0">
+                    <p className="line-clamp-2 text-sm font-medium text-[#2d3435]">{offer.sourceTitle}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[#adb3b4]">
+                      <span>{offer.sourceStoreName || offer.sourceName || "未记录渠道"}</span>
+                      <span>{formatCurrency(offer.price, offer.currency)}</span>
+                      <span>{offer.status === "out_of_stock" ? "缺货" : "有货"}</span>
+                      {offer.verifiedAt && <span>{formatRelativeTime(offer.verifiedAt)}</span>}
+                    </div>
+                    <a
+                      href={offer.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 block truncate text-xs text-[#47657a] transition-colors hover:text-[#2d3435]"
+                    >
+                      {offer.url}
+                    </a>
+                    {offer.failureReason && (
+                      <p className="mt-1 line-clamp-2 text-xs text-[#9b3328]">{offer.failureReason}</p>
+                    )}
                   </div>
-                  <a
-                    href={offer.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1 block truncate text-xs text-[#47657a] transition-colors hover:text-[#2d3435]"
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={() => onToggleHidden(offer, hiddenAction)}
+                    className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border bg-white px-3 text-xs font-medium transition-colors disabled:opacity-60 ${actionClass}`}
                   >
-                    {offer.url}
-                  </a>
-                  {offer.failureReason && (
-                    <p className="mt-1 line-clamp-2 text-xs text-[#9b3328]">{offer.failureReason}</p>
-                  )}
+                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                    {actionLabel}
+                  </button>
                 </div>
-                <button
+              );
+            })}
+          </div>
+          {offers.length < totalCount && (
+            <div className="border-t border-[#adb3b4]/15 p-3">
+              <button
                   type="button"
-                  disabled={actionLoading}
-                  onClick={() => onToggleHidden(offer, hiddenAction)}
-                  className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border bg-white px-3 text-xs font-medium transition-colors disabled:opacity-60 ${actionClass}`}
+                  onClick={onLoadMore}
+                  className="inline-flex h-8 w-full items-center justify-center rounded-lg border border-[#adb3b4]/30 bg-white px-3 text-xs font-medium text-[#5a6061] transition-colors hover:bg-[#f2f4f4]"
                 >
-                  {actionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
-                  {actionLabel}
+                  加载更多
                 </button>
-              </div>
-            );
-          })}
-        </div>
+            </div>
+          )}
+        </>
       ) : (
         <div className="px-3 py-10 text-center text-sm text-[#adb3b4]">{emptyText}</div>
       )}

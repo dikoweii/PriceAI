@@ -6,8 +6,8 @@ import { ProductOffersPanel } from "@/components/ProductOffersPanel";
 import { getPublicProductSummary } from "@/lib/data";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 
-export const revalidate = 300;
-export const dynamic = "force-static";
+export const revalidate = 0;
+export const dynamic = "force-dynamic";
 export const dynamicParams = true;
 
 const productTypeLabels: Record<string, string> = {

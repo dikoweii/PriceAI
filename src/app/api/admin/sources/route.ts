@@ -1,5 +1,6 @@
 import { deleteSource, getAdminPasswordFromRequest, setSourceOffersHidden, updateSourceState, upsertSource } from "@/lib/admin";
 import { requireAdminPassword } from "@/lib/env";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -52,6 +53,8 @@ export async function PATCH(request: Request) {
         hidden: payload.offersHidden,
         reason: payload.reason,
       });
+      revalidatePath("/");
+      revalidatePath("/products/[id]", "page");
 
       return Response.json({ ok: true, ...result });
     }

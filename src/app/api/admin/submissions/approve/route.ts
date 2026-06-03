@@ -5,6 +5,7 @@ import { requireAdminPassword } from "@/lib/env";
 const schema = z.object({
   id: z.string().min(1),
   name: z.string().trim().max(200).optional().nullable(),
+  sourceUrl: z.string().url().max(2048).optional().nullable(),
   collectionMethod: z.enum(["public_json", "browser", "http", "manual"]).optional(),
   collectorKind: z.enum(["auto", "kami", "dujiao", "shopApi", "xiaoheiwan", "opensoraHtml", "makerichHtml", "beibeiHtml", "browser", "unsupported"]).nullable().optional(),
 });
@@ -15,6 +16,7 @@ export async function POST(request: Request) {
     const payload = schema.parse(await request.json());
     const result = await approveSubmission(payload.id, {
       name: payload.name ?? null,
+      sourceUrl: payload.sourceUrl ?? null,
       collectionMethod: payload.collectionMethod,
       collectorKind: payload.collectorKind,
     });

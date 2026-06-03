@@ -1,5 +1,6 @@
 import { getAdminPasswordFromRequest, setRawOfferHidden } from "@/lib/admin";
 import { requireAdminPassword } from "@/lib/env";
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 const schema = z.object({
@@ -14,6 +15,8 @@ export async function POST(request: Request) {
 
     const payload = schema.parse(await request.json());
     const result = await setRawOfferHidden(payload);
+    revalidatePath("/");
+    revalidatePath("/products/[id]", "page");
 
     return Response.json({ ok: true, ...result });
   } catch (error) {

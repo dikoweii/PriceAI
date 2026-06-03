@@ -1232,6 +1232,7 @@ export async function approveSubmission(
   id: string,
   overrides: {
     name?: string | null;
+    sourceUrl?: string | null;
     collectionMethod?: CollectionMethod;
     collectorKind?: CollectorKind | null;
   } = {},
@@ -1249,7 +1250,8 @@ export async function approveSubmission(
   if (row.status !== "pending") throw new Error("该提交已被处理。");
 
   const submission = mapSubmissionRow(row);
-  const canonicalSourceUrl = getCanonicalSourceUrl(submission.parsedMeta) || submission.url;
+  const manualSourceUrl = normalizeOverrideSourceUrl(overrides.sourceUrl);
+  const canonicalSourceUrl = manualSourceUrl || getCanonicalSourceUrl(submission.parsedMeta) || submission.url;
   const baseUrl = deriveBaseUrl(canonicalSourceUrl);
   const suggestedMethod = getSuggestedCollectionMethod(submission.parsedMeta);
   const suggestedCollectorKind = getSuggestedCollectorKind(submission.parsedMeta);
@@ -1277,9 +1279,15 @@ export async function approveSubmission(
     });
 
   if (existingSource && selectedCollectorKind) {
-    source = await updateSourceState({
+    source = await upsertSource({
       id: existingSource.id,
+      name: existingSource.name || fallbackName,
+      entryUrl: canonicalSourceUrl,
+      baseUrl,
+      collectionMethod: overrides.collectionMethod || existingSource.collectionMethod || suggestedMethod || "http",
       collectorKind: selectedCollectorKind || existingSource.collectorKind || null,
+      enabled: true,
+      notes: existingSource.notes,
     });
   }
 
@@ -1329,6 +1337,7 @@ export async function approveSubmission(
     matched_existing_source: Boolean(existingSource),
     approved_collector_kind: selectedCollectorKind || null,
     approved_source_url: canonicalSourceUrl,
+    manual_source_url: manualSourceUrl,
   };
   const { data: updated, error: updateError } = await supabase
     .from("channel_submissions")
@@ -1440,6 +1449,23 @@ function getCanonicalSourceUrl(meta: Record<string, unknown>): string | null {
   return typeof meta.canonical_source_url === "string" && meta.canonical_source_url.trim()
     ? meta.canonical_source_url.trim()
     : null;
+}
+
+function normalizeOverrideSourceUrl(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error("手动渠道入口 URL 格式不正确。");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("手动渠道入口仅支持 http/https。");
+  }
+
+  return parsed.toString();
 }
 
 function getSuggestedCollectionMethod(meta: Record<string, unknown>): CollectionMethod | null {
