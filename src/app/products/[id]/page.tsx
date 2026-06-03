@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ProductDetailHeader } from "@/components/ProductDetailHeader";
 import { ProductOffersPanel } from "@/components/ProductOffersPanel";
-import { getPublicProductSummary } from "@/lib/data";
+import { getPublicProductSummary, listPublicProductOffers } from "@/lib/data";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 
 export const revalidate = 0;
@@ -29,7 +29,10 @@ export default async function ProductDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const product = await getPublicProductSummary(id);
+  const [product, initialOffers] = await Promise.all([
+    getPublicProductSummary(id),
+    listPublicProductOffers(id, { limit: 80, offset: 0 }),
+  ]);
 
   if (!product) notFound();
 
@@ -74,7 +77,11 @@ export default async function ProductDetail({
           </div>
         </div>
 
-        <ProductOffersPanel productId={product.id} initialCount={product.offerCount} />
+        <ProductOffersPanel
+          productId={product.id}
+          initialCount={product.offerCount}
+          initialData={initialOffers}
+        />
 
         <p className="mt-8 text-xs leading-6 text-[#5a6061]">
           免责声明：本站仅聚合公开采集或审核通过的报价信息，不参与交易，实际价格、库存、质保和售后规则以原平台为准。

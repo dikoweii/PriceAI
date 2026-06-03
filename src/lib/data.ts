@@ -371,39 +371,8 @@ export async function getPublicProductGroup(id: string) {
 }
 
 export async function getPublicProductSummary(id: string) {
-  const supabase = getSupabaseServerClient();
-
-  if (supabase) {
-    try {
-      const products = await listActiveCanonicalProducts();
-      const product =
-        products.find((item) => item.id === id || item.slug === id) ||
-        canonicalCatalog.find((item) => item.id === id || item.slug === id);
-
-      if (!product) return null;
-
-      const { data: offerRows, error: offerError } = await supabase
-        .from("raw_offers")
-        .select(RAW_OFFER_PUBLIC_SELECT)
-        .eq("hidden", false)
-        .eq("canonical_product_id", product.id)
-        .order("price", { ascending: true, nullsFirst: false })
-        .limit(PUBLIC_OFFER_LIMIT);
-      if (offerError) throw offerError;
-
-      const offers = ((offerRows || []) as unknown as Record<string, unknown>[])
-        .map(mapRawOffer)
-        .filter((offer) => resolveOfferProduct(offer, products.length ? products : canonicalCatalog).id === product.id);
-      const [group] = buildProductGroups(offers, [product]);
-
-      if (group) return toExplorerProductSummary(group);
-    } catch (error) {
-      console.warn("Falling back to cached product summary because Supabase read failed:", error);
-    }
-  }
-
-  const product = await getPublicProductGroup(id);
-  return product ? toExplorerProductSummary(product) : null;
+  const explorerData = await getExplorerData();
+  return explorerData.products.find((product) => product.id === id || product.slug === id) || null;
 }
 
 export async function listPublicProductOffers(id: string, filters: ProductOfferListFilters = {}) {

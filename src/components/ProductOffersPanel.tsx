@@ -22,12 +22,14 @@ const productOffersMemoryCache = new Map<string, ProductOffersResponse>();
 export function ProductOffersPanel({
   productId,
   initialCount,
+  initialData = null,
 }: {
   productId: string;
   initialCount: number;
+  initialData?: ProductOffersResponse | null;
 }) {
   const initialCacheKey = productOffersCacheKey(productId, 0);
-  const cachedInitialData = productOffersMemoryCache.get(initialCacheKey) ?? null;
+  const cachedInitialData = productOffersMemoryCache.get(initialCacheKey) ?? initialData;
   const [data, setData] = useState<ProductOffersResponse | null>(cachedInitialData);
   const [loading, setLoading] = useState(!cachedInitialData);
   const [paging, setPaging] = useState(false);
@@ -39,6 +41,11 @@ export function ProductOffersPanel({
     const cacheKey = productOffersCacheKey(productId, 0);
 
     async function loadOffers() {
+      if (initialData) {
+        productOffersMemoryCache.set(cacheKey, initialData);
+        writeSessionCache(cacheKey, initialData);
+      }
+
       const cachedData =
         productOffersMemoryCache.get(cacheKey) ??
         readSessionCache<ProductOffersResponse>(cacheKey, PRODUCT_OFFERS_CACHE_TTL_MS);
@@ -69,7 +76,7 @@ export function ProductOffersPanel({
     loadOffers();
 
     return () => controller.abort();
-  }, [productId]);
+  }, [initialData, productId]);
 
   const offers = data?.offers ?? [];
   const total = data?.total ?? initialCount;
