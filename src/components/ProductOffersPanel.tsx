@@ -44,6 +44,10 @@ export function ProductOffersPanel({
       if (initialData) {
         productOffersMemoryCache.set(cacheKey, initialData);
         writeSessionCache(cacheKey, initialData);
+        setData(initialData);
+        setLoading(false);
+        setError(null);
+        return;
       }
 
       const cachedData =
@@ -166,11 +170,6 @@ export function ProductOffersPanel({
 
   return (
     <>
-      {total > offers.length ? (
-        <div className="mt-6 rounded-lg bg-[#fff7e8] px-4 py-3 text-sm text-[#6a4b16]">
-          当前商品共有 {total} 条报价，已显示 {offers.length} 条。
-        </div>
-      ) : null}
       <OfferTable offers={offers} />
       <section className="mt-5 grid gap-3 md:hidden">
         {offers.map((offer) => (
@@ -219,7 +218,15 @@ function OfferTable({ offers }: { offers: RawOffer[] }) {
   return (
     <section className="mt-6 hidden overflow-hidden rounded-lg bg-white shadow-[0_20px_55px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15 md:block">
       <div className="overflow-x-auto">
-        <table className="min-w-[920px] w-full border-collapse text-left text-sm">
+        <table className="min-w-[1040px] w-full table-fixed border-collapse text-left text-sm">
+          <colgroup>
+            <col className="w-[110px]" />
+            <col className="w-[220px]" />
+            <col />
+            <col className="w-[130px]" />
+            <col className="w-[150px]" />
+            <col className="w-[140px]" />
+          </colgroup>
           <thead className="bg-[#f2f4f4] text-[0.68rem] font-semibold text-[#5a6061]">
             <tr>
               <TableHead>状态</TableHead>
@@ -255,7 +262,7 @@ function OfferTable({ offers }: { offers: RawOffer[] }) {
                       {formatCurrency(offer.price, offer.currency)}
                     </span>
                   </td>
-                  <td className="px-5 py-4 text-[#5a6061]">{formatRelativeTime(offerTimestamp(offer))}</td>
+                  <td className="whitespace-nowrap px-5 py-4 text-[#5a6061]">{formatRelativeTime(offerTimestamp(offer))}</td>
                   <td className="px-5 py-4">
                     <OfferLink offer={offer} available={available} compact />
                   </td>
@@ -273,7 +280,7 @@ function OfferListItem({ offer }: { offer: RawOffer }) {
   const available = isOfferAvailable(offer);
 
   return (
-    <article className={`rounded-lg p-4 shadow-[0_16px_45px_rgba(45,52,53,0.04)] ring-1 ${available ? "bg-white ring-[#adb3b4]/15" : "bg-[#fbf7f6] ring-[#ead8d5]"}`}>
+    <article className={`min-w-0 rounded-lg p-4 shadow-[0_16px_45px_rgba(45,52,53,0.04)] ring-1 ${available ? "bg-white ring-[#adb3b4]/15" : "bg-[#fbf7f6] ring-[#ead8d5]"}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate font-semibold text-[#202829]">{sourceLabel(offer)}</p>
@@ -281,7 +288,7 @@ function OfferListItem({ offer }: { offer: RawOffer }) {
         </div>
         <OfferStatusBadge available={available} />
       </div>
-      <div className="mt-4 flex items-end justify-between gap-4">
+      <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className={`text-2xl font-bold tracking-normal ${available ? "text-[#202829]" : "text-[#9b3328]"}`}>
             {formatCurrency(offer.price, offer.currency)}
@@ -295,13 +302,13 @@ function OfferListItem({ offer }: { offer: RawOffer }) {
 }
 
 function TableHead({ children }: { children: React.ReactNode }) {
-  return <th className="px-5 py-3 font-semibold">{children}</th>;
+  return <th className="sticky top-16 z-10 bg-[#f2f4f4] px-5 py-3 font-semibold shadow-[0_1px_0_#dfe4e5]">{children}</th>;
 }
 
 function OfferStatusBadge({ available }: { available: boolean }) {
   return (
     <span
-      className={`inline-flex shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${
+      className={`inline-flex shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold ${
         available ? "bg-[#e8f3ec] text-[#2f7a4b]" : "bg-[#fbe9e7] text-[#9b3328]"
       }`}
     >
@@ -328,8 +335,8 @@ function OfferLink({
         source_id: offer.sourceId || "unknown",
         available,
       })}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-full text-sm font-semibold transition hover:opacity-90 ${
-        compact ? "h-9 px-3" : "h-11 px-5"
+      className={`inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full text-sm font-semibold leading-none transition hover:opacity-90 ${
+        compact ? "h-9 min-w-[104px] px-3" : "h-11 min-w-[120px] px-5"
       } ${
         available
           ? "bg-[#2d3435] text-[#f8f8f8]"

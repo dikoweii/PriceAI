@@ -16,14 +16,16 @@ export function ProductDetailHeader() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 bg-[#f9f9f9]/85 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-[1300px] items-center justify-between px-5 py-4 sm:px-8">
-        <Link href={returnHref} className="inline-flex items-center gap-2 text-sm font-semibold text-[#5a6061] hover:text-[#2d3435]">
+    <header className="sticky top-0 z-40 border-b border-[#dfe4e5] bg-[#f9f9f9]/95 shadow-[0_10px_24px_rgba(45,52,53,0.035)] backdrop-blur-xl">
+      <div className="mx-auto flex h-16 max-w-[1300px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+        <Link href={returnHref} className="inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-2 text-sm font-semibold text-[#5a6061] hover:bg-[#edf0f1] hover:text-[#2d3435] sm:px-3">
           <ArrowLeft size={17} />
           返回首页
         </Link>
-        <div className="flex items-center gap-3">
-          <FeedbackLink compact />
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <div className="hidden sm:block">
+            <FeedbackLink compact />
+          </div>
           <Link href={returnHref} aria-label="PriceAI 首页" className="shrink-0">
             <AppLogo compact />
           </Link>

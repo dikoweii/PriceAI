@@ -40,10 +40,10 @@ export default async function ProductDetail({
     <main className="min-h-screen bg-[#f9f9f9] text-[#2d3435]">
       <ProductDetailHeader />
 
-      <div className="mx-auto max-w-[1300px] px-5 py-8 sm:px-8 lg:py-12">
+      <div className="mx-auto max-w-[1300px] px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
         <section className="rounded-lg bg-[#f2f4f4] p-6 shadow-[0_20px_60px_rgba(45,52,53,0.04)] lg:p-8">
-          <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(420px,520px)] lg:items-end">
+            <div className="min-w-0 max-w-3xl">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge>{platformIcon(product.platform)} {product.platform}</Badge>
                 <Badge>{productTypeLabel(product.productType)}</Badge>
@@ -55,7 +55,7 @@ export default async function ProductDetail({
               <p className="mt-4 text-sm leading-7 text-[#5a6061]">{product.summary}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:min-w-[520px] lg:grid-cols-4">
+            <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">
               <Metric label="最低价" value={formatCurrency(product.lowestPrice, product.lowestOffer?.currency)} />
               <Metric label="有货" value={`${product.inStockCount}`} />
               <Metric label="缺货" value={`${product.outOfStockCount}`} />
@@ -71,7 +71,7 @@ export default async function ProductDetail({
               {product.offerCount} 条报价 · 只区分有货和缺货
             </p>
           </div>
-          <div className="flex items-center gap-2 text-sm text-[#5a6061]">
+          <div className="flex shrink-0 items-center gap-2 whitespace-nowrap text-sm text-[#5a6061]">
             <Clock3 size={16} />
             最近记录 {formatRelativeTime(product.latestSeenAt)}
           </div>
@@ -93,9 +93,9 @@ export default async function ProductDetail({
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-white px-4 py-3 shadow-[0_12px_35px_rgba(45,52,53,0.035)] ring-1 ring-[#adb3b4]/15">
+    <div className="min-w-0 rounded-lg bg-white px-4 py-3 shadow-[0_12px_35px_rgba(45,52,53,0.035)] ring-1 ring-[#adb3b4]/15">
       <p className="text-[0.68rem] font-medium uppercase tracking-[0.14em] text-[#5a6061]">{label}</p>
-      <p className="mt-1 text-xl font-bold text-[#202829]">{value}</p>
+      <p className="mt-1 truncate text-xl font-bold text-[#202829]">{value}</p>
     </div>
   );
 }

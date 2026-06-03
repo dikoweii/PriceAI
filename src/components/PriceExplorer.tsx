@@ -80,6 +80,7 @@ const PRODUCT_SKELETON_ROWS = [0, 1, 2];
 const EXPLORER_CACHE_KEY = "priceai:explorer:v1";
 const EXPLORER_CACHE_TTL_MS = 5 * 60 * 1000;
 const OFFER_LIST_CACHE_TTL_MS = 2 * 60 * 1000;
+const PRODUCT_DETAIL_PREFETCH_LIMIT = 8;
 
 const EMPTY_EXPLORER_DATA: ExplorerData = {
   generatedAt: "",
@@ -120,6 +121,7 @@ export function PriceExplorer({
   const [offersPaging, setOffersPaging] = useState(false);
   const [offersError, setOffersError] = useState<string | null>(null);
   const offerLoadMoreRef = useRef<HTMLDivElement | null>(null);
+  const prefetchedDetailHrefsRef = useRef<Set<string>>(new Set());
 
   const products = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -194,6 +196,23 @@ export function PriceExplorer({
       }).toString(),
     [maxPrice, minPrice, platform, productType, query, scopeMode, sort, stock, viewMode],
   );
+  const productDetailHrefsToWarm = useMemo(
+    () =>
+      showingOffers || dataLoading
+        ? []
+        : products
+            .slice(0, PRODUCT_DETAIL_PREFETCH_LIMIT)
+            .map((product) => productDetailHref(product.slug, explorerQueryString)),
+    [dataLoading, explorerQueryString, products, showingOffers],
+  );
+  const warmProductDetail = useCallback(
+    (href: string) => {
+      if (!href || prefetchedDetailHrefsRef.current.has(href)) return;
+      prefetchedDetailHrefsRef.current.add(href);
+      router.prefetch(href);
+    },
+    [router],
+  );
 
   useEffect(() => {
     if (!data) return;
@@ -237,6 +256,27 @@ export function PriceExplorer({
 
     return () => controller.abort();
   }, [data]);
+
+  useEffect(() => {
+    if (!productDetailHrefsToWarm.length) return;
+
+    let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
+    let idleId: number | null = null;
+    const warmVisibleDetails = () => {
+      productDetailHrefsToWarm.forEach(warmProductDetail);
+    };
+
+    if ("requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(warmVisibleDetails, { timeout: 1600 });
+    } else {
+      timeoutId = globalThis.setTimeout(warmVisibleDetails, 500);
+    }
+
+    return () => {
+      if (idleId !== null) window.cancelIdleCallback(idleId);
+      if (timeoutId !== null) globalThis.clearTimeout(timeoutId);
+    };
+  }, [productDetailHrefsToWarm, warmProductDetail]);
 
   function changePlatform(nextPlatform: string) {
     setPlatform(nextPlatform);
@@ -374,7 +414,7 @@ export function PriceExplorer({
 
   return (
     <div className="min-h-screen bg-[#f9f9f9] text-[#2d3435]">
-      <header className="sticky top-0 z-30 bg-[#f9f9f9]/85 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 bg-[#f9f9f9]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-5 px-5 py-4 sm:px-8">
           <Link href="/" aria-label="PriceAI 首页" className="shrink-0">
             <AppLogo />
@@ -391,9 +431,9 @@ export function PriceExplorer({
         </div>
       </header>
 
-      <section className="sticky top-[72px] z-20 hidden bg-[#f2f4f4]/90 px-5 py-5 backdrop-blur-xl sm:px-8 md:block">
+      <section className="sticky top-[68px] z-30 hidden border-y border-[#dfe4e5] bg-[#f9f9f9]/95 px-5 py-2 shadow-[0_10px_24px_rgba(45,52,53,0.035)] backdrop-blur-xl sm:px-8 md:block">
         <div className="mx-auto max-w-[1500px]">
-          <div className="flex gap-3 overflow-x-auto pb-1">
+          <div className="flex gap-2 overflow-x-auto py-1">
             {["全部", ...platformOptions].map((item) => (
               <TabPill
                 key={item}
@@ -621,12 +661,12 @@ export function PriceExplorer({
               }`}
             >
               {products.map((product) => (
-                <ProductCard key={product.id} product={product} returnQuery={explorerQueryString} onIntent={router.prefetch} />
+                <ProductCard key={product.id} product={product} returnQuery={explorerQueryString} onIntent={warmProductDetail} />
               ))}
             </div>
             {viewMode === "table" ? (
               <div className="hidden md:block">
-                <ProductTable products={products} returnQuery={explorerQueryString} onIntent={router.prefetch} />
+                <ProductTable products={products} returnQuery={explorerQueryString} onIntent={warmProductDetail} />
               </div>
             ) : null}
           </>
@@ -1114,7 +1154,7 @@ function TabPill({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm transition ${
+      className={`inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 text-sm transition ${
         active
           ? "bg-[#dde4e5] font-semibold text-[#2d3435]"
           : "bg-transparent text-[#5a6061] hover:bg-[#ebeeef] hover:text-[#2d3435]"
