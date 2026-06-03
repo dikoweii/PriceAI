@@ -94,6 +94,9 @@ const collectorKindOptions: Array<[CollectorKind, string]> = [
   ["opensoraHtml", "OpenSora HTML"],
   ["makerichHtml", "Makerich HTML"],
   ["beibeiHtml", "贝贝 HTML"],
+  ["ikunloveApi", "IkunLove API"],
+  ["humktApi", "Humkt API"],
+  ["getgptApi", "GetGPT API"],
   ["browser", "本机浏览器"],
   ["unsupported", "暂不支持"],
 ];
@@ -2895,16 +2898,22 @@ const knownAutoCollectorHosts = new Set([
   "card.kxandyou.com",
   "faka.redeemgpt.com",
   "feifei.shop",
+  "getgpt.pro",
+  "humkt.com",
+  "ikunlove.best",
   "kapay.shop",
+  "ldxp.cn",
   "makerich.club",
   "pay.ldxp.cn",
   "pay.qxvx.cn",
   "shop.aitonse.com",
   "shop.auto-subscribe.com",
+  "shopcardai.click",
   "talkai.cyou",
   "ultra.makelove.cloud",
   "upgrade.xiaoheiwan.com",
   "yh-mo.xyz",
+  "zhang520.store",
   "zzshu.com",
 ]);
 
@@ -2916,13 +2925,16 @@ function sourceHost(source: Source): string {
 function inferCollectorKindFromSource(source: Source): CollectorKind | null {
   const host = sourceHost(source);
   const text = `${source.id} ${source.name} ${source.entryUrl} ${source.baseUrl || ""}`.toLowerCase();
-  if (["ai666.dnxb.cc", "aisou.pro", "caowo.store", "faka.redeemgpt.com", "feifei.shop", "talkai.cyou", "yh-mo.xyz", "zzshu.com"].includes(host)) return "kami";
-  if (["burstpro-ai.online", "card.kxandyou.com", "kapay.shop", "shop.aitonse.com", "shop.auto-subscribe.com", "ultra.makelove.cloud"].includes(host)) return "dujiao";
-  if (host === "pay.qxvx.cn" || host === "pay.ldxp.cn") return "shopApi";
+  if (["ai666.dnxb.cc", "aisou.pro", "caowo.store", "faka.redeemgpt.com", "feifei.shop", "shopcardai.click", "talkai.cyou", "yh-mo.xyz", "zzshu.com"].includes(host)) return "kami";
+  if (["burstpro-ai.online", "card.kxandyou.com", "kapay.shop", "shop.aitonse.com", "shop.auto-subscribe.com", "ultra.makelove.cloud", "zhang520.store"].includes(host)) return "dujiao";
+  if (host === "pay.qxvx.cn" || host === "pay.ldxp.cn" || host === "ldxp.cn") return "shopApi";
   if (host === "upgrade.xiaoheiwan.com") return "xiaoheiwan";
   if (host === "aifk.opensora.de") return "opensoraHtml";
   if (host === "makerich.club") return "makerichHtml";
   if (host === "bei-bei.shop") return "beibeiHtml";
+  if (host === "ikunlove.best") return "ikunloveApi";
+  if (host === "humkt.com") return "humktApi";
+  if (host === "getgpt.pro") return "getgptApi";
   if (text.includes("burstpro")) return "dujiao";
   return null;
 }

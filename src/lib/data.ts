@@ -480,6 +480,9 @@ function normalizeCollectorKind(value: unknown): Source["collectorKind"] {
     value === "opensoraHtml" ||
     value === "makerichHtml" ||
     value === "beibeiHtml" ||
+    value === "ikunloveApi" ||
+    value === "humktApi" ||
+    value === "getgptApi" ||
     value === "browser" ||
     value === "unsupported"
   ) {

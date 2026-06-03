@@ -12,6 +12,7 @@ const KAMI_HOSTS = new Set([
   "caowo.store",
   "faka.redeemgpt.com",
   "feifei.shop",
+  "shopcardai.click",
   "talkai.cyou",
   "yh-mo.xyz",
   "zzshu.com",
@@ -24,6 +25,7 @@ const DUJIAO_HOSTS = new Set([
   "shop.aitonse.com",
   "shop.auto-subscribe.com",
   "ultra.makelove.cloud",
+  "zhang520.store",
 ]);
 
 const PRICE_VALUE_PATTERN = String.raw`(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)`;
@@ -209,6 +211,9 @@ async function collectTarget(target) {
   if (target.kind === "opensoraHtml") return collectOpensoraHtml(target);
   if (target.kind === "makerichHtml") return collectMakerichHtml(target);
   if (target.kind === "beibeiHtml") return collectBeibeiHtml(target);
+  if (target.kind === "ikunloveApi") return collectIkunloveApi(target);
+  if (target.kind === "humktApi") return collectHumktApi(target);
+  if (target.kind === "getgptApi") return collectGetgptApi(target);
 
   throw new Error(`Unsupported collector kind: ${target.kind}`);
 }
@@ -569,6 +574,122 @@ async function collectBeibeiHtml(target) {
   return offers;
 }
 
+async function collectIkunloveApi(target) {
+  const payload = await fetchJson(`${target.baseUrl}/api/shop/products`);
+  const products = Array.isArray(payload.data?.products) ? payload.data.products : [];
+  const offers = [];
+
+  for (const product of products) {
+    const title = cleanText(product.title);
+    const price = numberOrNull(product.priceCents) === null ? null : numberOrNull(product.priceCents) / 100;
+    if (!title || price === null || isNonComparableTitle(title)) continue;
+
+    const stockCount = numberOrNull(product.stockCount);
+    const hidden = product.isDeleted === true || product.isActive === false;
+    const status = hidden ? "out_of_stock" : statusFromStock(stockCount);
+    const detailUrl = product.purchaseGuideUrl || product.consolePath || product.tutorialPath || target.sourceUrl;
+
+    offers.push(
+      makeOffer(target, {
+        title,
+        price,
+        status,
+        stockCount,
+        url: absolutize(detailUrl, target.baseUrl),
+        tags: compact([
+          product.category,
+          product.badge,
+          product.isActive === false ? "已下架" : null,
+          product.isDeleted === true ? "已删除" : null,
+        ]),
+      }),
+    );
+  }
+
+  return offers;
+}
+
+async function collectHumktApi(target) {
+  const payload = await fetchJson(`${target.baseUrl}/api/goods`);
+  const items = Array.isArray(payload.data) ? payload.data : [];
+  const offers = [];
+
+  for (const item of items) {
+    const title = cleanText(item.name);
+    const price = numberOrNull(item.price);
+    if (!title || price === null || isNonComparableTitle(title)) continue;
+
+    const stockCount = stockCountFromHumkt(item);
+    offers.push(
+      makeOffer(target, {
+        title,
+        price,
+        status: statusFromStock(stockCount),
+        stockCount,
+        url: `${target.baseUrl}/product/${encodeURIComponent(String(item.id))}`,
+        tags: compact([
+          item.min_qty ? `最小购买 ${item.min_qty}` : null,
+          item.max_qty ? `最大购买 ${item.max_qty}` : null,
+        ]),
+      }),
+    );
+  }
+
+  return offers;
+}
+
+async function collectGetgptApi(target) {
+  const payload = await fetchJson("https://gpt.how2cs.cn/api/order/prices");
+  const products = [
+    {
+      title: "ChatGPT Plus 充值",
+      price: payload.gptplus_amount ?? payload.amount,
+      originalPrice: payload.gptplus_original_amount ?? payload.original_amount,
+      path: "/plus-price",
+    },
+    {
+      title: "ChatGPT Pro 充值",
+      price: payload.gptpro_amount,
+      originalPrice: payload.gptpro_original_amount,
+      path: "/gptpro",
+    },
+    {
+      title: "ChatGPT Pro Lite 充值",
+      price: payload.gptprolite_amount,
+      originalPrice: payload.gptprolite_original_amount,
+      path: "/gptpro",
+    },
+    {
+      title: "ChatGPT Team / Business 充值",
+      price: payload.team_amount,
+      originalPrice: payload.team_original_amount,
+      path: "/price",
+    },
+    {
+      title: "Claude 充值",
+      price: payload.claude_amount,
+      originalPrice: payload.claude_original_amount,
+      path: "/",
+    },
+  ];
+
+  return products
+    .map((product) => {
+      const price = numberOrNull(product.price);
+      if (price === null) return null;
+
+      return makeOffer(target, {
+        title: product.title,
+        price,
+        status: "in_stock",
+        stockCount: null,
+        url: absolutize(product.path, target.baseUrl),
+        tags: compact([product.originalPrice ? `原价 ${product.originalPrice}` : null, "官方接口"]),
+      });
+    })
+    .filter(Boolean);
+}
+
 async function discoverShopTokens(target) {
   const tokens = new Set();
   const entryToken = shopTokenFromUrl(target.sourceUrl);
@@ -654,7 +775,10 @@ function buildTarget(source, rawOffers) {
   const text = `${source.id} ${source.name} ${sourceUrl}`.toLowerCase();
   const configuredKind = normalizeCollectorKind(source.collector_kind);
   const inferredKind = inferCollectorKind(host, text);
-  const kind = configuredKind && configuredKind !== "auto" ? configuredKind : inferredKind;
+  const kind =
+    configuredKind && configuredKind !== "auto" && configuredKind !== "browser" && configuredKind !== "unsupported"
+      ? configuredKind
+      : inferredKind || configuredKind;
   const runnableKind = kind === "browser" || kind === "unsupported" ? null : kind;
 
   return {
@@ -739,6 +863,9 @@ function selectTargets(targets, options) {
   if (options.all) return targets.filter(runnable);
 
   const query = String(selected).toLowerCase();
+  const exact = targets.filter((target) => runnable(target) && String(target.sourceId).toLowerCase() === query);
+  if (exact.length) return exact;
+
   return targets.filter((target) =>
     runnable(target) &&
     [target.sourceId, target.sourceName, target.sourceUrl, target.kind, target.configuredKind]
@@ -750,11 +877,14 @@ function selectTargets(targets, options) {
 function inferCollectorKind(host, text = "") {
   if (KAMI_HOSTS.has(host)) return "kami";
   if (DUJIAO_HOSTS.has(host)) return "dujiao";
-  if (host === "pay.qxvx.cn" || host === "pay.ldxp.cn") return "shopApi";
+  if (host === "pay.qxvx.cn" || host === "pay.ldxp.cn" || host === "ldxp.cn") return "shopApi";
   if (host === "upgrade.xiaoheiwan.com") return "xiaoheiwan";
   if (host === "aifk.opensora.de") return "opensoraHtml";
   if (host === "makerich.club") return "makerichHtml";
   if (host === "bei-bei.shop") return "beibeiHtml";
+  if (host === "ikunlove.best") return "ikunloveApi";
+  if (host === "humkt.com") return "humktApi";
+  if (host === "getgpt.pro") return "getgptApi";
   if (text.includes("burstpro")) return "dujiao";
   return null;
 }
@@ -770,6 +900,9 @@ function normalizeCollectorKind(value) {
     "opensoraHtml",
     "makerichHtml",
     "beibeiHtml",
+    "ikunloveApi",
+    "humktApi",
+    "getgptApi",
     "browser",
     "unsupported",
   ].includes(text)
@@ -937,6 +1070,14 @@ function numberOrNull(value) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(String(value).replace(/[^\d.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function stockCountFromHumkt(item) {
+  const inStock = numberOrNull(item?.in_stock);
+  if (inStock !== null && inStock <= 0) return 0;
+  const maxQty = numberOrNull(item?.max_qty);
+  if (maxQty !== null && maxQty < 999_999) return maxQty;
+  return null;
 }
 
 function compact(values) {

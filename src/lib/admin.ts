@@ -783,6 +783,7 @@ const KAMI_HOSTS = new Set([
   "caowo.store",
   "faka.redeemgpt.com",
   "feifei.shop",
+  "shopcardai.click",
   "talkai.cyou",
   "yh-mo.xyz",
   "zzshu.com",
@@ -794,6 +795,7 @@ const DUJIAO_HOSTS = new Set([
   "shop.aitonse.com",
   "shop.auto-subscribe.com",
   "ultra.makelove.cloud",
+  "zhang520.store",
 ]);
 
 export async function parseSubmissionMetadata(rawUrl: string): Promise<{
@@ -991,11 +993,14 @@ async function resolveSourceFromKnownOffer(
 function inferCollectorKind(host: string): string {
   if (KAMI_HOSTS.has(host)) return "kami";
   if (DUJIAO_HOSTS.has(host)) return "dujiao";
-  if (host === "pay.qxvx.cn" || host === "pay.ldxp.cn") return "shopApi";
+  if (host === "pay.qxvx.cn" || host === "pay.ldxp.cn" || host === "ldxp.cn") return "shopApi";
   if (host === "upgrade.xiaoheiwan.com") return "xiaoheiwan";
   if (host === "aifk.opensora.de") return "opensoraHtml";
   if (host === "makerich.club") return "makerichHtml";
   if (host === "bei-bei.shop") return "beibeiHtml";
+  if (host === "ikunlove.best") return "ikunloveApi";
+  if (host === "humkt.com") return "humktApi";
+  if (host === "getgpt.pro") return "getgptApi";
   if (host.includes("burstpro")) return "dujiao";
   return "browser";
 }
@@ -1006,6 +1011,13 @@ function inferSubmittedSourceName(host: string, parsedTitle: string | null, shop
   if (host === "pay.qxvx.cn" && shopToken) return `QXVX / ${shopToken}`;
   if (host === "kapay.shop") return "Auto Subscribe / kapay.shop";
   if (host === "shop.auto-subscribe.com") return "Auto Subscribe";
+  if (host === "zhang520.store") return "zhang520.store";
+  if (host === "shopcardai.click") return "购物 - DN发卡网";
+  if (host === "humkt.com") return "humkt.com";
+  if (host === "ldxp.cn" && shopToken) return `LDXP / ${shopToken}`;
+  if (host === "ldxp.cn") return "ldxp.cn";
+  if (host === "ikunlove.best") return "AI 商品站";
+  if (host === "getgpt.pro") return parsedTitle || "ChatGPT Plus 充值服务|GPT Pro官方充值|GPT5代充|Codex充值";
   if (host === "aifk.opensora.de") return "AUTO FK";
   if (host === "aisou.pro") return "Aisou智充";
   if (host === "caowo.store") return "GPT专卖-cw";
@@ -1027,6 +1039,12 @@ function inferSubmittedSourceId(host: string, sourceName: string, shopToken: str
   if (host === "pay.ldxp.cn") return `ldxp-${slugify(shopToken || sourceName) || stableId(host, sourceName)}`;
   if (host === "pay.qxvx.cn") return `qxvx-${slugify(shopToken || sourceName) || stableId(host, sourceName)}`;
   if (host === "shop.auto-subscribe.com") return "auto-subscribe";
+  if (host === "zhang520.store") return "zhang520-store";
+  if (host === "shopcardai.click") return "购物-dn发卡网";
+  if (host === "humkt.com") return "humkt-com";
+  if (host === "ldxp.cn") return "ldxp-cn";
+  if (host === "ikunlove.best") return "ai-商品站";
+  if (host === "getgpt.pro") return "chatgpt-plus-充值服务-gpt-pro官方充值-gpt5代充-codex充值";
   if (host === "aifk.opensora.de") return "opensora-aifk";
   if (host === "aisou.pro") return "aisou-pro";
   if (host === "caowo.store") return "caowo-store";
@@ -1178,6 +1196,9 @@ function normalizeCollectorKind(value: unknown): CollectorKind | null {
     normalized === "opensoraHtml" ||
     normalized === "makerichHtml" ||
     normalized === "beibeiHtml" ||
+    normalized === "ikunloveApi" ||
+    normalized === "humktApi" ||
+    normalized === "getgptApi" ||
     normalized === "browser" ||
     normalized === "unsupported"
   ) {

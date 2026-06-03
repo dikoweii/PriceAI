@@ -22,6 +22,9 @@ export type CollectorKind =
   | "opensoraHtml"
   | "makerichHtml"
   | "beibeiHtml"
+  | "ikunloveApi"
+  | "humktApi"
+  | "getgptApi"
   | "browser"
   | "unsupported";
 

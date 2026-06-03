@@ -3,12 +3,28 @@ import { requireAdminPassword } from "@/lib/env";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+const collectorKindSchema = z.enum([
+  "auto",
+  "kami",
+  "dujiao",
+  "shopApi",
+  "xiaoheiwan",
+  "opensoraHtml",
+  "makerichHtml",
+  "beibeiHtml",
+  "ikunloveApi",
+  "humktApi",
+  "getgptApi",
+  "browser",
+  "unsupported",
+]);
+
 const createSchema = z.object({
   name: z.string().min(1),
   entryUrl: z.string().url(),
   baseUrl: z.string().url().nullable().optional(),
   collectionMethod: z.enum(["public_json", "browser", "http", "manual"]).default("manual"),
-  collectorKind: z.enum(["auto", "kami", "dujiao", "shopApi", "xiaoheiwan", "opensoraHtml", "makerichHtml", "beibeiHtml", "browser", "unsupported"]).nullable().optional(),
+  collectorKind: collectorKindSchema.nullable().optional(),
   enabled: z.boolean().default(true),
   notes: z.string().nullable().optional(),
 });
@@ -17,7 +33,7 @@ const patchSchema = z.object({
   id: z.string().min(1),
   enabled: z.boolean().optional(),
   collectionMethod: z.enum(["public_json", "browser", "http", "manual"]).optional(),
-  collectorKind: z.enum(["auto", "kami", "dujiao", "shopApi", "xiaoheiwan", "opensoraHtml", "makerichHtml", "beibeiHtml", "browser", "unsupported"]).nullable().optional(),
+  collectorKind: collectorKindSchema.nullable().optional(),
   notes: z.string().nullable().optional(),
   offersHidden: z.boolean().optional(),
   reason: z.string().max(500).nullable().optional(),
