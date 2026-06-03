@@ -239,7 +239,7 @@ function OfferTable({ offers, onFeedback }: { offers: RawOffer[]; onFeedback: (o
             <col />
             <col className="w-[130px]" />
             <col className="w-[150px]" />
-            <col className="w-[170px]" />
+            <col className="w-[190px]" />
           </colgroup>
           <thead className="bg-[#f2f4f4] text-[0.68rem] font-semibold text-[#5a6061]">
             <tr>
@@ -277,7 +277,7 @@ function OfferTable({ offers, onFeedback }: { offers: RawOffer[]; onFeedback: (o
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-5 py-4 text-[#5a6061]">{formatRelativeTime(offerTimestamp(offer))}</td>
-                  <td className="px-5 py-4">
+                  <td className="px-4 py-3">
                     <OfferActions offer={offer} available={available} onFeedback={onFeedback} compact />
                   </td>
                 </tr>
@@ -309,7 +309,7 @@ function OfferListItem({ offer, onFeedback }: { offer: RawOffer; onFeedback: (of
           </p>
           <p className="mt-1 text-xs text-[#5a6061]">{formatRelativeTime(offerTimestamp(offer))}</p>
         </div>
-        <OfferActions offer={offer} available={available} onFeedback={onFeedback} compact />
+        <OfferActions offer={offer} available={available} onFeedback={onFeedback} />
       </div>
     </article>
   );
@@ -350,7 +350,7 @@ function OfferLink({
         available,
       })}
       className={`inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full text-sm font-semibold leading-none transition hover:opacity-90 ${
-        compact ? "h-9 min-w-[104px] px-3" : "h-11 min-w-[120px] px-5"
+        compact ? "h-9 min-w-[108px] px-3" : "h-10 min-w-[112px] px-4"
       } ${
         available
           ? "bg-[#2d3435] text-[#f8f8f8]"
@@ -375,15 +375,19 @@ function OfferActions({
   compact?: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-nowrap items-center justify-end gap-2">
       <OfferLink offer={offer} available={available} compact={compact} />
       <button
         type="button"
         onClick={() => onFeedback(offer)}
-        className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-[#adb3b4]/30 bg-white px-3 text-xs font-semibold text-[#5a6061] transition hover:bg-[#f2f4f4]"
+        title="反馈报价问题"
+        aria-label="反馈报价问题"
+        className={`inline-flex shrink-0 items-center justify-center rounded-full border border-[#adb3b4]/30 bg-white text-xs font-semibold text-[#5a6061] transition hover:border-[#5a6061]/35 hover:bg-[#f2f4f4] ${
+          compact ? "h-9 w-9" : "h-10 px-3"
+        }`}
       >
         <Flag size={14} />
-        反馈
+        {!compact ? <span className="ml-1.5">反馈</span> : null}
       </button>
     </div>
   );
