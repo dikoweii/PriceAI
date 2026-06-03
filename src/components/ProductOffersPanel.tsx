@@ -211,7 +211,7 @@ async function fetchProductOfferPage(
 }
 
 function productOffersCacheKey(productId: string, offset: number): string {
-  return `priceai:product-offers:v1:${productId}:${offset}:${OFFER_PAGE_SIZE}`;
+  return `priceai:product-offers:v2:${productId}:${offset}:${OFFER_PAGE_SIZE}`;
 }
 
 function OfferTable({ offers }: { offers: RawOffer[] }) {

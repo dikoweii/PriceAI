@@ -146,6 +146,32 @@ async function listVisibleRawOfferRows(): Promise<Record<string, unknown>[]> {
   return rows;
 }
 
+async function listVisibleProductOfferRows(productId: string): Promise<Record<string, unknown>[]> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return [];
+
+  const rows: Record<string, unknown>[] = [];
+
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const to = from + SUPABASE_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("raw_offers")
+      .select(RAW_OFFER_PUBLIC_SELECT)
+      .eq("hidden", false)
+      .eq("canonical_product_id", productId)
+      .order("id", { ascending: true })
+      .range(from, to);
+
+    if (error) throw error;
+
+    const batch = (data || []) as unknown as Record<string, unknown>[];
+    rows.push(...batch);
+    if (batch.length < SUPABASE_PAGE_SIZE) break;
+  }
+
+  return rows;
+}
+
 async function readPublicOfferData(): Promise<PublicOfferData> {
   const now = Date.now();
   if (publicOfferDataCache && publicOfferDataCache.expiresAt > now) {
@@ -426,26 +452,16 @@ async function loadPublicProductOffers(
         };
       }
 
-      const { data: offerRows, error: offerError, count } = await supabase
-        .from("raw_offers")
-        .select(RAW_OFFER_PUBLIC_SELECT, { count: "exact" })
-        .eq("hidden", false)
-        .eq("canonical_product_id", product.id)
-        .order("status", { ascending: true })
-        .order("price", { ascending: true, nullsFirst: false })
-        .order("verified_at", { ascending: false, nullsFirst: false })
-        .range(offset, offset + limit - 1);
-      if (offerError) throw offerError;
-
-      const offers = ((offerRows || []) as unknown as Record<string, unknown>[])
+      const offers = (await listVisibleProductOfferRows(product.id))
         .map(mapRawOffer)
         .filter((offer) => resolveOfferProduct(offer, products.length ? products : canonicalCatalog).id === product.id)
         .sort(comparePublicOffers);
+      const page = offers.slice(offset, offset + limit);
 
       return {
-        offers,
-        total: count ?? offset + offers.length,
-        limited: (count ?? 0) > offset + limit,
+        offers: page,
+        total: offers.length,
+        limited: offers.length > offset + limit,
         generatedAt: new Date().toISOString(),
       };
     } catch (error) {
@@ -456,7 +472,7 @@ async function loadPublicProductOffers(
   const product = await getPublicProductGroup(id);
   const offers = (product?.offers ?? []).filter(
     (offer) => product && resolveOfferProduct(offer, canonicalCatalog).id === product.id,
-  );
+  ).sort(comparePublicOffers);
   const total = offers.length;
   const page = offers.slice(offset, offset + limit);
 
@@ -625,7 +641,24 @@ function comparePublicOffers(a: RawOffer, b: RawOffer): number {
   const priceDelta = (a.price ?? Number.MAX_SAFE_INTEGER) - (b.price ?? Number.MAX_SAFE_INTEGER);
   if (priceDelta !== 0) return priceDelta;
 
-  return (offerTimestamp(b) || "").localeCompare(offerTimestamp(a) || "");
+  const timestampDelta = compareText(offerTimestamp(b) || "", offerTimestamp(a) || "");
+  if (timestampDelta !== 0) return timestampDelta;
+
+  const sourceDelta = compareText(sourceLabel(a), sourceLabel(b));
+  if (sourceDelta !== 0) return sourceDelta;
+
+  const titleDelta = compareText(a.sourceTitle, b.sourceTitle);
+  if (titleDelta !== 0) return titleDelta;
+
+  const urlDelta = compareText(a.url, b.url);
+  if (urlDelta !== 0) return urlDelta;
+
+  return compareText(a.id, b.id);
+}
+
+function compareText(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
 }
 
 function offerTimestamp(offer: RawOffer): string | null | undefined {
