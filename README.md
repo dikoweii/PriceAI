@@ -22,7 +22,8 @@
   <a href="#适合谁">适合谁</a> ·
   <a href="#priceai-怎么解决">怎么解决</a> ·
   <a href="#快速开始">快速开始</a> ·
-  <a href="#文档">文档</a>
+  <a href="#文档">文档</a> ·
+  <a href="#star-趋势">Star 趋势</a>
 </p>
 
 ---
@@ -149,6 +150,16 @@ npm run collect:browser -- --url https://aisou.pro/ --password your-admin-passwo
 - [GA4 分析](./docs/analytics.md)
 
 `PRODUCT.md` 和 `DESIGN.md` 保留在根目录，供设计与产品工作流直接读取。
+
+## Star 趋势
+
+<a href="https://star-history.com/#physics-dimension/PriceAI&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=physics-dimension/PriceAI&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=physics-dimension/PriceAI&type=Date" />
+    <img alt="PriceAI Star History Chart" src="https://api.star-history.com/svg?repos=physics-dimension/PriceAI&type=Date" />
+  </picture>
+</a>
 
 ## Roadmap
 
