@@ -144,7 +144,6 @@ npm run collect:browser -- --url https://aisou.pro/ --password your-admin-passwo
 - [采集器与来源扩展](./docs/collectors.md)
 - [架构说明](./docs/architecture.md)
 - [数据策略](./docs/data-policy.md)
-- [分类重构草案](./docs/planning/data-classification-redesign.md)
 - [产品原则](./PRODUCT.md)
 - [设计系统](./DESIGN.md)
 - [GA4 分析](./docs/analytics.md)
