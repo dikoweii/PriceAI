@@ -11,6 +11,18 @@ export const platformOptions = [
   "其他",
 ] as const;
 
+const platformSortRank = new Map<string, number>(
+  platformOptions.map((platform, index) => [platform, index]),
+);
+
+export function comparePlatformOrder(a: string, b: string): number {
+  const rankA = platformSortRank.get(a) ?? platformOptions.length;
+  const rankB = platformSortRank.get(b) ?? platformOptions.length;
+  if (rankA !== rankB) return rankA - rankB;
+
+  return a.localeCompare(b, "zh-CN");
+}
+
 export const productTypeOptions = [
   "订阅/会员",
   "成品账号",
@@ -521,6 +533,9 @@ export function buildProductGroups(
   }
 
   return Array.from(map.values()).sort((a, b) => {
+    const platformDelta = comparePlatformOrder(a.platform, b.platform);
+    if (platformDelta !== 0) return platformDelta;
+
     const stockDelta = Number(b.inStockCount > 0) - Number(a.inStockCount > 0);
     if (stockDelta !== 0) return stockDelta;
 

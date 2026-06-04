@@ -33,6 +33,7 @@ import { BrandIcon } from "@/components/BrandIcon";
 import { FeedbackLink, GitHubLink } from "@/components/FeedbackLink";
 import {
   collectOfferFlags,
+  comparePlatformOrder,
   isAvailable,
   platformOptions,
   productTypeOptions,
@@ -197,10 +198,25 @@ export function PriceExplorer({
     });
 
     return filtered.sort((a, b) => {
-      if (sort === "channels") return b.offerCount - a.offerCount;
-      if (sort === "updated") return (b.latestSeenAt || "").localeCompare(a.latestSeenAt || "");
+      const platformDelta = comparePlatformOrder(a.platform, b.platform);
+      if (platformDelta !== 0) return platformDelta;
+
+      if (sort === "channels") {
+        const channelDelta = b.offerCount - a.offerCount;
+        if (channelDelta !== 0) return channelDelta;
+        return compareProductFallback(a, b);
+      }
+
+      if (sort === "updated") {
+        const updatedDelta = (b.latestSeenAt || "").localeCompare(a.latestSeenAt || "");
+        if (updatedDelta !== 0) return updatedDelta;
+        return compareProductFallback(a, b);
+      }
+
       if (sort === "price") {
-        return (a.lowestPrice ?? Number.MAX_SAFE_INTEGER) - (b.lowestPrice ?? Number.MAX_SAFE_INTEGER);
+        const priceDelta = compareProductPrice(a, b);
+        if (priceDelta !== 0) return priceDelta;
+        return compareProductFallback(a, b);
       }
 
       const stockDelta = Number(b.inStockCount > 0) - Number(a.inStockCount > 0);
@@ -209,7 +225,10 @@ export function PriceExplorer({
       const trustDelta = productSortPenalty(a) - productSortPenalty(b);
       if (trustDelta !== 0) return trustDelta;
 
-      return (a.lowestPrice ?? Number.MAX_SAFE_INTEGER) - (b.lowestPrice ?? Number.MAX_SAFE_INTEGER);
+      const priceDelta = compareProductPrice(a, b);
+      if (priceDelta !== 0) return priceDelta;
+
+      return compareProductFallback(a, b);
     });
   }, [explorerData.products, maxPrice, minPrice, platform, productType, query, sort, stock]);
 
@@ -1663,6 +1682,17 @@ function productSortPenalty(product: ExplorerProductSummary): number {
   }
 
   return penalty;
+}
+
+function compareProductPrice(a: ExplorerProductSummary, b: ExplorerProductSummary): number {
+  return (a.lowestPrice ?? Number.MAX_SAFE_INTEGER) - (b.lowestPrice ?? Number.MAX_SAFE_INTEGER);
+}
+
+function compareProductFallback(a: ExplorerProductSummary, b: ExplorerProductSummary): number {
+  const nameDelta = a.displayName.localeCompare(b.displayName, "zh-CN");
+  if (nameDelta !== 0) return nameDelta;
+
+  return a.id.localeCompare(b.id, "zh-CN");
 }
 
 function offerTimestamp(offer: RawOffer): string | null | undefined {

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { ADMIN_MANUAL_HIDE_REASON_PREFIX, listOfferFeedback, listSiteFeedback, listSubmissions } from "./admin";
-import { buildProductGroups, canonicalCatalog, resolveOfferProduct } from "./catalog";
+import { buildProductGroups, canonicalCatalog, comparePlatformOrder, resolveOfferProduct } from "./catalog";
 import { isSupabaseConfigured } from "./env";
 import { seedRawOffers, seedSources } from "./sample-data";
 import { getSupabaseServerClient } from "./supabase";
@@ -558,19 +558,31 @@ export async function listPublicOffers(filters: OfferListFilters = {}) {
     });
 
   rows = rows.sort((a, b) => {
+    const platformDelta = comparePlatformOrder(a.product.platform, b.product.platform);
+    if (platformDelta !== 0) return platformDelta;
+
     if (filters.sort === "updated") {
-      return (offerTimestamp(b.offer) || "").localeCompare(offerTimestamp(a.offer) || "");
+      const updatedDelta = (offerTimestamp(b.offer) || "").localeCompare(offerTimestamp(a.offer) || "");
+      if (updatedDelta !== 0) return updatedDelta;
+      return comparePublicOfferFallback(a.offer, b.offer);
     }
 
     if (filters.sort === "channels") {
-      return sourceLabel(a.offer).localeCompare(sourceLabel(b.offer), "zh-CN");
+      const sourceDelta = sourceLabel(a.offer).localeCompare(sourceLabel(b.offer), "zh-CN");
+      if (sourceDelta !== 0) return sourceDelta;
+      return comparePublicOfferFallback(a.offer, b.offer);
     }
 
     if (filters.sort === "price") {
-      return (a.offer.price ?? Number.MAX_SAFE_INTEGER) - (b.offer.price ?? Number.MAX_SAFE_INTEGER);
+      const priceDelta = (a.offer.price ?? Number.MAX_SAFE_INTEGER) - (b.offer.price ?? Number.MAX_SAFE_INTEGER);
+      if (priceDelta !== 0) return priceDelta;
+      return comparePublicOfferFallback(a.offer, b.offer);
     }
 
-    return comparePublicOffers(a.offer, b.offer);
+    const offerDelta = comparePublicOffers(a.offer, b.offer);
+    if (offerDelta !== 0) return offerDelta;
+
+    return comparePublicOfferFallback(a.offer, b.offer);
   });
 
   return {
@@ -687,6 +699,16 @@ function comparePublicOffers(a: RawOffer, b: RawOffer): number {
 
   const urlDelta = compareText(a.url, b.url);
   if (urlDelta !== 0) return urlDelta;
+
+  return compareText(a.id, b.id);
+}
+
+function comparePublicOfferFallback(a: RawOffer, b: RawOffer): number {
+  const sourceDelta = compareText(sourceLabel(a), sourceLabel(b));
+  if (sourceDelta !== 0) return sourceDelta;
+
+  const titleDelta = compareText(a.sourceTitle, b.sourceTitle);
+  if (titleDelta !== 0) return titleDelta;
 
   return compareText(a.id, b.id);
 }
