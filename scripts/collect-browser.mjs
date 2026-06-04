@@ -74,6 +74,8 @@ if (args.post) {
         : "本机浏览器未提取到候选报价。",
       offers: normalizedOffers,
       details: {
+        collectorNode: collectorNodeDetails(args),
+        collector: "browser",
         browserPath,
         url: targetUrl,
       },
@@ -169,6 +171,64 @@ function sourceNameFromUrl(value) {
   } catch {
     return value;
   }
+}
+
+function collectorNodeDetails(options = {}) {
+  const id =
+    options.collectorNodeId ||
+    options["collector-node-id"] ||
+    process.env.PRICEAI_COLLECTOR_NODE_ID ||
+    defaultCollectorNodeId();
+  const name =
+    options.collectorNodeName ||
+    options["collector-node-name"] ||
+    process.env.PRICEAI_COLLECTOR_NODE_NAME ||
+    defaultCollectorNodeName(id);
+  const type =
+    options.collectorNodeType ||
+    options["collector-node-type"] ||
+    process.env.PRICEAI_COLLECTOR_NODE_TYPE ||
+    defaultCollectorNodeType();
+  const runtime =
+    options.collectorNodeRuntime ||
+    options["collector-node-runtime"] ||
+    process.env.PRICEAI_COLLECTOR_NODE_RUNTIME ||
+    defaultCollectorNodeRuntime();
+  const region =
+    options.collectorNodeRegion ||
+    options["collector-node-region"] ||
+    process.env.PRICEAI_COLLECTOR_NODE_REGION ||
+    null;
+
+  return compactObject({
+    id,
+    name,
+    type,
+    runtime,
+    region,
+  });
+}
+
+function defaultCollectorNodeId() {
+  return "local-browser";
+}
+
+function defaultCollectorNodeName(id) {
+  return id === "local-browser" ? "本机浏览器" : "未知节点";
+}
+
+function defaultCollectorNodeType() {
+  return "local";
+}
+
+function defaultCollectorNodeRuntime() {
+  return "browser";
+}
+
+function compactObject(value) {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, item]) => item !== null && item !== undefined && item !== ""),
+  );
 }
 
 function findBrowserPath() {

@@ -33,6 +33,11 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.CRON_SECRET }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PRICEAI_COLLECTOR_NODE_ID: github-actions
+          PRICEAI_COLLECTOR_NODE_NAME: GitHub Actions
+          PRICEAI_COLLECTOR_NODE_TYPE: ci
+          PRICEAI_COLLECTOR_NODE_RUNTIME: github-actions
+          PRICEAI_COLLECTOR_NODE_REGION: github-hosted
         run: |
           set -euo pipefail
 

@@ -3207,21 +3207,31 @@ function RecentRunsPanel({ runs }: { runs: CrawlRun[] }) {
     <Panel title="最近采集记录" icon={<RefreshCcw size={17} />}>
       {runs.length ? (
         <div className="divide-y divide-[#adb3b4]/15 rounded-lg border border-[#adb3b4]/20">
-          {runs.map((run) => (
-            <div key={run.id} className="px-4 py-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium text-[#2d3435]">{run.sourceName || run.sourceId || "未知来源"}</span>
-                <Badge>{collectionMethodLabel(run.mode)}</Badge>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${crawlStatusClass(run.status)}`}>
-                  {crawlStatusLabel(run.status)}
-                </span>
+          {runs.map((run) => {
+            const node = collectorNodeFromRun(run);
+            return (
+              <div key={run.id} className="px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium text-[#2d3435]">{run.sourceName || run.sourceId || "未知来源"}</span>
+                  <Badge>{collectionMethodLabel(run.mode)}</Badge>
+                  <Badge tone="info">节点: {node.name}</Badge>
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${crawlStatusClass(run.status)}`}>
+                    {crawlStatusLabel(run.status)}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm text-[#5a6061]">
+                  成功 {run.successCount} 条，失败 {run.failureCount} 条 · {formatRelativeTime(run.finishedAt || run.startedAt)}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-[#adb3b4]">
+                  {node.id}
+                  {node.type ? ` · ${collectorNodeTypeLabel(node.type)}` : ""}
+                  {node.runtime ? ` · ${collectorNodeRuntimeLabel(node.runtime)}` : ""}
+                  {node.region ? ` · ${node.region}` : ""}
+                </p>
+                {run.message && <p className="mt-1 break-words text-xs leading-5 text-[#adb3b4]">{run.message}</p>}
               </div>
-              <p className="mt-2 text-sm text-[#5a6061]">
-                成功 {run.successCount} 条，失败 {run.failureCount} 条 · {formatRelativeTime(run.finishedAt || run.startedAt)}
-              </p>
-              {run.message && <p className="mt-1 break-words text-xs leading-5 text-[#adb3b4]">{run.message}</p>}
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <EmptyState
@@ -3548,6 +3558,75 @@ function crawlStatusClass(value: CrawlRun["status"]): string {
   if (value === "success") return "bg-[#e8f3ec] text-[#2f7a4b]";
   if (value === "partial") return "bg-[#fff7e8] text-[#7a541b]";
   return "bg-[#fbe9e7] text-[#9b3328]";
+}
+
+type CollectorNodeInfo = {
+  id: string;
+  name: string;
+  type: string | null;
+  runtime: string | null;
+  region: string | null;
+};
+
+function collectorNodeFromRun(run: CrawlRun): CollectorNodeInfo {
+  const raw = run.details?.collectorNode;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const record = raw as Record<string, unknown>;
+    const id = stringValue(record.id) || "unknown-node";
+    return {
+      id,
+      name: stringValue(record.name) || collectorNodeNameFallback(id),
+      type: stringValue(record.type),
+      runtime: stringValue(record.runtime),
+      region: stringValue(record.region),
+    };
+  }
+
+  return {
+    id: "legacy-unknown",
+    name: "未标记节点",
+    type: null,
+    runtime: null,
+    region: null,
+  };
+}
+
+function stringValue(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function collectorNodeNameFallback(id: string): string {
+  const labels: Record<string, string> = {
+    "cn-vps-aliyun-guangzhou": "阿里云广州 VPS",
+    "github-actions": "GitHub Actions",
+    "local-browser": "本机浏览器",
+    "local-mac": "本机 Mac",
+    "vercel-cron": "Vercel Cron",
+  };
+  return labels[id] || id;
+}
+
+function collectorNodeTypeLabel(value: string): string {
+  const labels: Record<string, string> = {
+    ci: "CI",
+    local: "本机",
+    unknown: "未知类型",
+    vercel: "Vercel",
+    vps: "VPS",
+  };
+  return labels[value] || value;
+}
+
+function collectorNodeRuntimeLabel(value: string): string {
+  const labels: Record<string, string> = {
+    browser: "浏览器",
+    cron: "cron",
+    "github-actions": "GitHub Actions",
+    launchd: "launchd",
+    manual: "手动",
+    "vercel-cron": "Vercel Cron",
+  };
+  return labels[value] || value;
 }
 
 function sourceHealthLabel(source: Source): string {

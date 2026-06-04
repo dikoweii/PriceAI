@@ -952,6 +952,7 @@ async function postCrawlLog(target, offers, status, message, options = {}, detai
       message,
       offers,
       details: {
+        collectorNode: collectorNodeDetails(options),
         collector: target.kind,
         ...details,
       },
@@ -1007,6 +1008,78 @@ function postBatchSizeFor(options = {}) {
   const value = Number(options.postBatchSize || options["post-batch-size"] || 200);
   if (!Number.isFinite(value)) return 200;
   return Math.max(50, Math.min(Math.trunc(value), 500));
+}
+
+function collectorNodeDetails(options = {}) {
+  const id =
+    options.collectorNodeId ||
+    options["collector-node-id"] ||
+    process.env.PRICEAI_COLLECTOR_NODE_ID ||
+    env.PRICEAI_COLLECTOR_NODE_ID ||
+    defaultCollectorNodeId();
+  const name =
+    options.collectorNodeName ||
+    options["collector-node-name"] ||
+    process.env.PRICEAI_COLLECTOR_NODE_NAME ||
+    env.PRICEAI_COLLECTOR_NODE_NAME ||
+    defaultCollectorNodeName(id);
+  const type =
+    options.collectorNodeType ||
+    options["collector-node-type"] ||
+    process.env.PRICEAI_COLLECTOR_NODE_TYPE ||
+    env.PRICEAI_COLLECTOR_NODE_TYPE ||
+    defaultCollectorNodeType();
+  const runtime =
+    options.collectorNodeRuntime ||
+    options["collector-node-runtime"] ||
+    process.env.PRICEAI_COLLECTOR_NODE_RUNTIME ||
+    env.PRICEAI_COLLECTOR_NODE_RUNTIME ||
+    defaultCollectorNodeRuntime();
+  const region =
+    options.collectorNodeRegion ||
+    options["collector-node-region"] ||
+    process.env.PRICEAI_COLLECTOR_NODE_REGION ||
+    env.PRICEAI_COLLECTOR_NODE_REGION ||
+    process.env.VERCEL_REGION ||
+    null;
+
+  return compactObject({
+    id,
+    name,
+    type,
+    runtime,
+    region,
+  });
+}
+
+function defaultCollectorNodeId() {
+  if (process.env.GITHUB_ACTIONS === "true") return "github-actions";
+  if (process.env.VERCEL) return "vercel-cron";
+  return "unknown-node";
+}
+
+function defaultCollectorNodeName(id) {
+  if (id === "github-actions") return "GitHub Actions";
+  if (id === "vercel-cron") return "Vercel Cron";
+  return "未知节点";
+}
+
+function defaultCollectorNodeType() {
+  if (process.env.GITHUB_ACTIONS === "true") return "ci";
+  if (process.env.VERCEL) return "vercel";
+  return "unknown";
+}
+
+function defaultCollectorNodeRuntime() {
+  if (process.env.GITHUB_ACTIONS === "true") return "github-actions";
+  if (process.env.VERCEL) return "vercel-cron";
+  return "manual";
+}
+
+function compactObject(value) {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, item]) => item !== null && item !== undefined && item !== ""),
+  );
 }
 
 function offerIdsForSnapshot(offers) {
