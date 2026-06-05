@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { BrandIcon } from "@/components/BrandIcon";
 import { CategoryTabBar, type CategoryTabItem } from "@/components/CategoryTabBar";
+import { SiteHeader } from "@/components/SiteHeader";
 import {
   buildOfficialPriceOfferRows,
   buildOfficialPricePlanSummaries,
@@ -69,7 +70,10 @@ export function OfficialPricesExplorer({ dataset }: { dataset: OfficialPricesDat
 
   return (
     <>
-      <CategoryTabBar items={platformTabs} value={platform} onChange={(value) => setPlatform(value as PlatformFilter)} />
+      <div className="sticky top-0 z-40 bg-[#f9f9f9]/95 shadow-[0_10px_24px_rgba(45,52,53,0.035)] backdrop-blur-xl">
+        <SiteHeader />
+        <CategoryTabBar items={platformTabs} value={platform} onChange={(value) => setPlatform(value as PlatformFilter)} />
+      </div>
 
       <main className="mx-auto max-w-[1500px] px-5 py-6 sm:px-8 md:py-10 lg:py-12">
       <div className="mb-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">

@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { ApiModelIcon } from "@/components/ApiModelIcon";
 import { CategoryTabBar, type CategoryTabItem } from "@/components/CategoryTabBar";
+import { SiteHeader } from "@/components/SiteHeader";
 import {
   apiProviderTypeLabels,
   formatApiPrice,
@@ -168,7 +169,10 @@ export function ApiModelsExplorer({ dataset }: { dataset: ApiModelDataset }) {
 
   return (
     <>
-      <CategoryTabBar items={familyTabs} value={family} onChange={(value) => setFamily(value)} />
+      <div className="sticky top-0 z-40 bg-[#f9f9f9]/95 shadow-[0_10px_24px_rgba(45,52,53,0.035)] backdrop-blur-xl">
+        <SiteHeader />
+        <CategoryTabBar items={familyTabs} value={family} onChange={(value) => setFamily(value)} />
+      </div>
 
       <main className="mx-auto max-w-[1500px] px-5 py-6 sm:px-8 md:py-10 lg:py-12">
       <div className="mb-6 space-y-4 md:mb-8 md:space-y-5">

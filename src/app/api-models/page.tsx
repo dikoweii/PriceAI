@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { ApiModelsExplorer } from "@/components/ApiModelsExplorer";
-import { SiteHeader } from "@/components/SiteHeader";
 import { getApiModelDataset } from "@/lib/api-models-db";
 
 export const metadata: Metadata = {
@@ -23,9 +22,6 @@ export default async function ApiModelsPage() {
 
   return (
     <div className="min-h-screen bg-[#f9f9f9] text-[#2d3435]">
-      <div className="sticky top-0 z-40 border-b border-[#dfe4e5] bg-[#f9f9f9]/95 shadow-[0_10px_24px_rgba(45,52,53,0.035)] backdrop-blur-xl">
-        <SiteHeader />
-      </div>
       <ApiModelsExplorer dataset={dataset} />
     </div>
   );
