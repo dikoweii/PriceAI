@@ -1,0 +1,50 @@
+[
+  {
+    "countryCode": "US",
+    "countryLabel": "美国",
+    "storefrontCode": "us",
+    "currencyCode": "USD",
+    "enabled": true,
+    "priority": 10
+  },
+  {
+    "countryCode": "TR",
+    "countryLabel": "土耳其",
+    "storefrontCode": "tr",
+    "currencyCode": "TRY",
+    "enabled": true,
+    "priority": 20
+  },
+  {
+    "countryCode": "PH",
+    "countryLabel": "菲律宾",
+    "storefrontCode": "ph",
+    "currencyCode": "PHP",
+    "enabled": true,
+    "priority": 30
+  },
+  {
+    "countryCode": "JP",
+    "countryLabel": "日本",
+    "storefrontCode": "jp",
+    "currencyCode": "JPY",
+    "enabled": true,
+    "priority": 40
+  },
+  {
+    "countryCode": "SG",
+    "countryLabel": "新加坡",
+    "storefrontCode": "sg",
+    "currencyCode": "SGD",
+    "enabled": true,
+    "priority": 50
+  },
+  {
+    "countryCode": "HK",
+    "countryLabel": "香港",
+    "storefrontCode": "hk",
+    "currencyCode": "HKD",
+    "enabled": true,
+    "priority": 60
+  }
+]
