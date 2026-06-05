@@ -302,5 +302,77 @@
     "currencyCode": "ILS",
     "enabled": true,
     "priority": 380
+  },
+  {
+    "countryCode": "AR",
+    "countryLabel": "阿根廷",
+    "storefrontCode": "ar",
+    "currencyCode": "USD",
+    "enabled": true,
+    "priority": 390
+  },
+  {
+    "countryCode": "CO",
+    "countryLabel": "哥伦比亚",
+    "storefrontCode": "co",
+    "currencyCode": "COP",
+    "enabled": true,
+    "priority": 400
+  },
+  {
+    "countryCode": "EG",
+    "countryLabel": "埃及",
+    "storefrontCode": "eg",
+    "currencyCode": "EGP",
+    "enabled": true,
+    "priority": 410
+  },
+  {
+    "countryCode": "NG",
+    "countryLabel": "尼日利亚",
+    "storefrontCode": "ng",
+    "currencyCode": "NGN",
+    "enabled": true,
+    "priority": 420
+  },
+  {
+    "countryCode": "PE",
+    "countryLabel": "秘鲁",
+    "storefrontCode": "pe",
+    "currencyCode": "PEN",
+    "enabled": true,
+    "priority": 430
+  },
+  {
+    "countryCode": "PK",
+    "countryLabel": "巴基斯坦",
+    "storefrontCode": "pk",
+    "currencyCode": "PKR",
+    "enabled": true,
+    "priority": 440
+  },
+  {
+    "countryCode": "TW",
+    "countryLabel": "中国台湾",
+    "storefrontCode": "tw",
+    "currencyCode": "TWD",
+    "enabled": true,
+    "priority": 450
+  },
+  {
+    "countryCode": "UA",
+    "countryLabel": "乌克兰",
+    "storefrontCode": "ua",
+    "currencyCode": "USD",
+    "enabled": true,
+    "priority": 460
+  },
+  {
+    "countryCode": "VN",
+    "countryLabel": "越南",
+    "storefrontCode": "vn",
+    "currencyCode": "VND",
+    "enabled": true,
+    "priority": 470
   }
 ]

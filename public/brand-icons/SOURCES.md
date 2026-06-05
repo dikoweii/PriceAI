@@ -14,6 +14,8 @@ These assets are cached locally for stable rendering and performance. They are s
 | `opencode.png` | `https://opencode.ai/favicon.ico` | Converted from official favicon to PNG. |
 | `openrouter.png` | `https://openrouter.ai/favicon.ico` | Converted from official favicon to PNG. |
 | `nvidia.png` | `https://www.nvidia.com/favicon.ico` | Converted from official favicon to PNG. |
+| `ollama.png` | `https://ollama.com/public/ollama.png` | Official Ollama public image used for compact provider rows. |
+| `fireworks.png` | `https://fireworks.ai/favicon.ico` | Converted from official favicon to PNG. |
 | `stepfun.png` | `https://platform.stepfun.com/images/title-logo.png` | Official StepFun platform title logo. |
 | `baiducloud.png` | `https://bce.bdstatic.com/img/favicon.ico` | Converted from Baidu Cloud/BCE official public favicon to PNG. |
 | `jdcloud.png` | `https://img1.jcloudcs.com/portal/favicon.ico` | Converted from JD Cloud official public favicon to PNG. |

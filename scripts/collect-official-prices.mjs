@@ -614,6 +614,13 @@ async function fetchFxSnapshot(regions) {
   try {
     const data = JSON.parse(await fetchText(sourceUrl));
     const rates = { USD: 1, ...data.rates };
+    const missing = missingFxCurrencies(currencies, rates);
+
+    if (missing.length) {
+      return await fetchOpenExchangeFxSnapshot(currencies, {
+        fallbackReason: `Frankfurter missing rates for ${missing.join(", ")}.`,
+      });
+    }
 
     return {
       baseCurrency: data.base || "USD",
@@ -633,6 +640,34 @@ async function fetchFxSnapshot(regions) {
       fallbackReason: errorMessage(error),
     };
   }
+}
+
+async function fetchOpenExchangeFxSnapshot(currencies, options = {}) {
+  const sourceUrl = "https://open.er-api.com/v6/latest/USD";
+  const data = JSON.parse(await fetchText(sourceUrl));
+  const rawRates = data.rates || {};
+  const rates = {
+    USD: 1,
+    ...Object.fromEntries(currencies.map((currency) => [currency, Number(rawRates[currency])]).filter(([, rate]) => Number.isFinite(rate))),
+  };
+  const missing = missingFxCurrencies(currencies, rates);
+  if (missing.length) {
+    throw new Error(`open.er-api.com missing FX rates for ${missing.join(", ")}.`);
+  }
+
+  return {
+    baseCurrency: data.base_code || "USD",
+    date: fxDateFromOpenExchange(data.time_last_update_utc),
+    source: "open.er-api.com",
+    sourceUrl,
+    rates,
+    fallback: Boolean(options.fallbackReason),
+    fallbackReason: options.fallbackReason || null,
+  };
+}
+
+function missingFxCurrencies(currencies, rates) {
+  return currencies.filter((currency) => currency !== "USD" && !Number.isFinite(Number(rates[currency])));
 }
 
 export function loadFallbackFxSnapshot(currencies, latestPath = defaultOutPath) {
@@ -919,7 +954,10 @@ function normalizePriceText(text) {
 }
 
 function looksLikePrice(text) {
-  return /(?:[$€£¥₺₱₩₹]|HK\$|S\$|CA\$|A\$|NT\$|USD|TRY|PHP|JPY|SGD|HKD)\s*\d|\d[\d,.]*\s*(?:USD|TRY|PHP|JPY|SGD|HKD)/i.test(text);
+  return (
+    parsePriceValue(text) != null &&
+    /(?:[A-Z]{3}|[$€£¥₺₱₩₹₪₦₫]|HK\$|S\$|CA\$|A\$|NT\$|S\/|Rs\.?)\s*\d|\d[\d\s,.]*\s*(?:[A-Z]{3}|[$€£¥₺₱₩₹₪₦₫]|đ)/i.test(text)
+  );
 }
 
 function decodeHtmlText(value) {
@@ -951,6 +989,11 @@ function hashSnippet(value) {
 
 function roundCurrency(value) {
   return Math.round(value * 100) / 100;
+}
+
+function fxDateFromOpenExchange(value) {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date.toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
 }
 
 function splitList(value) {
@@ -1056,7 +1099,8 @@ function printSummary(result) {
     ].join(" "),
   );
   if (result.source.fxFallback) {
-    console.log(`FX fallback used: ${result.fx.date} from ${result.source.fxFallbackGeneratedAt || "local snapshot"} (${result.source.fxFallbackReason})`);
+    const fallbackLabel = result.source.fxFallbackGeneratedAt ? `local snapshot ${result.source.fxFallbackGeneratedAt}` : result.source.fxSource;
+    console.log(`FX fallback used: ${result.fx.date} from ${fallbackLabel} (${result.source.fxFallbackReason})`);
   }
 }
 

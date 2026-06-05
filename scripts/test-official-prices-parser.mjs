@@ -10,18 +10,28 @@ const html = `
   <div class="text-pair svelte-1gyt6l2"><span>ChatGPT Plus</span> <span>₺499,99</span></div>
   <div class="text-pair svelte-1gyt6l2"><span>ChatGPT Plus</span> <span>₺8.999,99</span></div>
   <div class="text-pair svelte-1gyt6l2"><span>100 Credits</span> <span>$4.00</span></div>
+  <div class="text-pair svelte-1gyt6l2"><span>Claude Pro - Monthly</span> <span>EGP 699.99</span> </div>
+  <div class="text-pair svelte-1gyt6l2"><span>Claude Max 5x - Monthly</span> <span>₦ 100,000.00</span> </div>
+  <div class="text-pair svelte-1gyt6l2"><span>Claude Pro - Monthly</span> <span>Rs 4,900.00</span> </div>
+  <div class="text-pair svelte-1gyt6l2"><span>Claude Pro - Monthly</span> <span>499.000đ</span> </div>
+  <div class="text-pair svelte-1gyt6l2"><span>Claude Pro - Monthly</span> <span>S/ 69.90</span> </div>
   <div class="text-pair svelte-1gyt6l2"><span>Developer</span> <span>OpenAI OpCo, LLC</span></div>
 `;
 
 const pairs = extractInAppPurchasePairs(html, "https://apps.apple.com/tr/app/chatgpt/id6448311069");
 
-assert.equal(pairs.length, 3);
+assert.equal(pairs.length, 8);
 assert.deepEqual(
   pairs.map((item) => [item.title, item.priceText]),
   [
     ["ChatGPT Plus", "₺499,99"],
     ["ChatGPT Plus", "₺8.999,99"],
     ["100 Credits", "$4.00"],
+    ["Claude Pro - Monthly", "EGP 699.99"],
+    ["Claude Max 5x - Monthly", "₦ 100,000.00"],
+    ["Claude Pro - Monthly", "Rs 4,900.00"],
+    ["Claude Pro - Monthly", "499.000đ"],
+    ["Claude Pro - Monthly", "S/ 69.90"],
   ],
 );
 assert.ok(pairs.every((item) => item.sourceUrl === "https://apps.apple.com/tr/app/chatgpt/id6448311069"));

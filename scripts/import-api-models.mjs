@@ -11,6 +11,30 @@ import ts from "typescript";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
 
+const collectorKindByProviderId = {
+  "alibaba-coding-plan": "alibaba_coding_plan",
+  "baidu-qianfan": "baidu_qianfan",
+  "ctyun-xirang": "ctyun_xirang",
+  "deepseek-official": "deepseek_pricing",
+  "fireworks-fire-pass": "fireworks_fire_pass",
+  "glm-coding-plan": "bigmodel_glm_coding",
+  "huaweicloud-modelarts-maas": "huaweicloud_maas",
+  "jdcloud-joyai": "jdcloud_joybuilder",
+  "kimi-code": "kimi_code_membership",
+  "kimi-official": "kimi_pricing",
+  "minimax-official": "minimax_pricing",
+  "nvidia-nim": "nvidia_nim",
+  ollama: "ollama_pricing",
+  "opencode-go": "opencode_go",
+  openrouter: "openrouter",
+  "stepfun-official": "stepfun_pricing",
+  "tencent-hunyuan-coding-plan": "tencent_tokenhub_coding_plan",
+  "unicom-yuanjing": "unicom_yuanjing",
+  "volcengine-ark-coding-plan": "volcengine_ark_coding_plan",
+  "xiaomi-mimo": "xiaomi_mimo_pricing",
+  "zhipu-bigmodel": "bigmodel_pricing",
+};
+
 if (isCli()) {
   const args = normalizeOptions(parseArgs(process.argv.slice(2)));
 
@@ -62,7 +86,7 @@ export async function importApiModelDataset(options = {}) {
       limit_summary: provider.limitSummary,
       limitations: provider.limitations,
       source_label: provider.sourceLabel,
-      collector_kind: null,
+      collector_kind: collectorKindByProviderId[provider.id] ?? "manual_review",
       enabled: true,
       data_updated_at: toTimestamp(provider.updatedAt),
     })),
