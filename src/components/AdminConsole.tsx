@@ -123,6 +123,36 @@ type OfficialProbeResult = {
   };
 };
 
+type ApiModelProbeResult = {
+  ok: boolean;
+  message?: string;
+  result?: {
+    scope?: {
+      providers?: string[];
+      providerCount?: number;
+      modelCount?: number;
+      planCount?: number;
+      offerCount?: number;
+      urlProbeCount?: number;
+    };
+    run?: {
+      status?: string;
+      providerCount?: number;
+      successfulProviderCount?: number;
+      failedProviderCount?: number;
+      partialProviderCount?: number;
+      modelCount?: number;
+      planCount?: number;
+      offerCount?: number;
+      urlProbeCount?: number;
+      okUrlCount?: number;
+      skippedUrlCount?: number;
+      failedUrlCount?: number;
+      firstError?: string | null;
+    };
+  };
+};
+
 type AdminTab = "review" | "todo" | "feedback" | "history" | "collect" | "official" | "apiModels" | "sources" | "manual" | "logs";
 
 type RowFeedback = {
@@ -177,6 +207,7 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
   const [siteFeedback, setSiteFeedback] = useState<SiteFeedback[]>(data.pendingSiteFeedback || []);
   const [probeResults, setProbeResults] = useState<Record<string, ProbeResult>>({});
   const [officialProbeResult, setOfficialProbeResult] = useState<OfficialProbeResult | null>(null);
+  const [apiModelProbeResult, setApiModelProbeResult] = useState<ApiModelProbeResult | null>(null);
   const [officialAppPatches, setOfficialAppPatches] = useState<Record<string, Partial<OfficialAdminApp>>>({});
   const [officialPlanPatches, setOfficialPlanPatches] = useState<Record<string, Partial<OfficialAdminPlan>>>({});
   const [officialRegionPatches, setOfficialRegionPatches] = useState<Record<string, Partial<OfficialAdminRegion>>>({});
@@ -574,6 +605,21 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
       setGlobalMessage({ type: "success", text: "官方地区价试采集完成，结果已在面板中更新。" });
     } else {
       setGlobalMessage({ type: "error", text: result.message || "官方地区价试采集失败。" });
+    }
+  }
+
+  async function probeApiModels() {
+    setLoadingAction("api-models-probe");
+    setGlobalMessage({ type: "info", text: "正在试采集 OpenRouter API 模型公开来源，不会写入数据库..." });
+    const result = await request("/api/admin/api-models/probe", password, {
+      provider: "openrouter",
+    });
+    setLoadingAction(null);
+    setApiModelProbeResult(result);
+    if (result.ok) {
+      setGlobalMessage({ type: "success", text: "API 模型试采集完成，结果已在面板中更新。" });
+    } else {
+      setGlobalMessage({ type: "error", text: result.message || "API 模型试采集失败。" });
     }
   }
 
@@ -2174,6 +2220,8 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
                 <ApiModelsAdminPanel
                   data={apiModels}
                   loadingAction={loadingAction}
+                  probeResult={apiModelProbeResult}
+                  onProbe={probeApiModels}
                   onCopyImportCommand={copyApiModelImportCommand}
                   onCopyCollectorCommand={copyApiModelCollectorCommand}
                   onEnqueueCollection={enqueueApiModelCollection}
@@ -3959,6 +4007,8 @@ function OfficialPricesAdminPanel({
 function ApiModelsAdminPanel({
   data,
   loadingAction,
+  probeResult,
+  onProbe,
   onCopyImportCommand,
   onCopyCollectorCommand,
   onEnqueueCollection,
@@ -3968,6 +4018,8 @@ function ApiModelsAdminPanel({
 }: {
   data: ApiModelAdminData;
   loadingAction: string | null;
+  probeResult: ApiModelProbeResult | null;
+  onProbe: () => void;
   onCopyImportCommand: () => void;
   onCopyCollectorCommand: () => void;
   onEnqueueCollection: () => void;
@@ -4030,6 +4082,15 @@ function ApiModelsAdminPanel({
             </Link>
             <button
               type="button"
+              onClick={onProbe}
+              disabled={loadingAction === "api-models-probe"}
+              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-[#2d3435] px-4 text-sm font-medium text-white transition-colors hover:bg-[#202829] disabled:opacity-60"
+            >
+              {loadingAction === "api-models-probe" ? <Loader2 size={15} className="animate-spin" /> : <RefreshCcw size={15} />}
+              试采集 OpenRouter
+            </button>
+            <button
+              type="button"
               onClick={onCopyCollectorCommand}
               className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-[#adb3b4]/30 bg-white px-4 text-sm font-medium text-[#2d3435] transition-colors hover:bg-[#f2f4f4]"
             >
@@ -4046,6 +4107,23 @@ function ApiModelsAdminPanel({
             </button>
           </div>
         </div>
+
+        {probeResult ? (
+          <div className={`mt-4 rounded-lg border px-4 py-3 text-sm ${probeResult.ok ? "border-[#2f7a4b]/20 bg-[#e8f3ec] text-[#2f7a4b]" : "border-[#9b3328]/20 bg-[#fbe9e7] text-[#9b3328]"}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">{probeResult.ok ? "试采集完成" : "试采集失败"}</span>
+              {probeResult.result?.run?.status ? <Badge tone="info">{officialRunStatusLabel(probeResult.result.run.status)}</Badge> : null}
+              {probeResult.result?.scope?.providers?.length ? <Badge tone="info">{probeResult.result.scope.providers.join(", ")}</Badge> : null}
+            </div>
+            <p className="mt-2 leading-6">
+              {apiModelProbeSummaryText(probeResult)}
+            </p>
+            {probeResult.result?.run?.firstError ? (
+              <p className="mt-1 break-words text-xs leading-5">{probeResult.result.run.firstError}</p>
+            ) : null}
+            {probeResult.message ? <p className="mt-1 break-words text-xs leading-5">{probeResult.message}</p> : null}
+          </div>
+        ) : null}
       </Panel>
 
       <Panel title="API 渠道提交" icon={<Inbox size={17} />}>
@@ -4934,6 +5012,7 @@ function officialRunStatusLabel(value: string): string {
   if (value === "success") return "成功";
   if (value === "partial_success") return "部分成功";
   if (value === "failed") return "失败";
+  if (value === "skipped") return "已跳过";
   return value;
 }
 
@@ -4960,6 +5039,27 @@ function officialProbeSummaryText(result: OfficialProbeResult): string {
     : "未生成数据库计划。";
 
   return `${parts.join("，")}。${dbText}`;
+}
+
+function apiModelProbeSummaryText(result: ApiModelProbeResult): string {
+  if (!result.ok) return result.message || "试采集没有返回可用结果。";
+
+  const run = result.result?.run;
+  const scope = result.result?.scope;
+  const parts = [
+    `来源 ${run?.providerCount ?? scope?.providerCount ?? 0}`,
+    `模型 ${run?.modelCount ?? scope?.modelCount ?? 0}`,
+    `套餐 ${run?.planCount ?? scope?.planCount ?? 0}`,
+    `报价 ${run?.offerCount ?? scope?.offerCount ?? 0}`,
+  ];
+  const probeText = [
+    `URL 成功 ${run?.okUrlCount ?? 0}`,
+    `跳过 ${run?.skippedUrlCount ?? 0}`,
+    `失败 ${run?.failedUrlCount ?? 0}`,
+    `总计 ${run?.urlProbeCount ?? scope?.urlProbeCount ?? 0}`,
+  ];
+
+  return `${parts.join("，")}。${probeText.join("，")}。`;
 }
 
 function apiProviderTypeLabel(value: ApiModelAdminProvider["type"] | ApiModelAdminOffer["providerType"] | ApiModelAdminPlan["type"]): string {

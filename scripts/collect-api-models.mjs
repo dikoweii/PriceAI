@@ -50,8 +50,7 @@ if (isCli()) {
 export async function collectApiModels(options = {}) {
   options = normalizeOptions(options);
 
-  const data = await loadApiModelModule();
-  const dataset = data.staticApiModelDataset;
+  const dataset = options.dataset || (await loadApiModelModule()).staticApiModelDataset;
   const selectedProviders = selectProviders(dataset.providers, options);
   if (!selectedProviders.length) {
     throw new Error("No API providers matched. Use --all or --provider openrouter.");
