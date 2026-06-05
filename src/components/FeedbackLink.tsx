@@ -27,14 +27,16 @@ const feedbackTypes: Array<{ value: FeedbackType; label: string }> = [
 
 export function FeedbackLink({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
-  const labelClassName = compact ? "inline" : undefined;
+  const labelClassName = compact ? "hidden sm:inline" : undefined;
 
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex shrink-0 items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-semibold text-[#2d3435] shadow-[0_10px_30px_rgba(45,52,53,0.06)] ring-1 ring-[#adb3b4]/25 transition hover:-translate-y-0.5 hover:bg-[#f5f7f7] hover:text-[#202829]"
+        className={`inline-flex h-10 shrink-0 items-center justify-center rounded-full bg-white text-sm font-semibold text-[#2d3435] shadow-[0_10px_30px_rgba(45,52,53,0.06)] ring-1 ring-[#adb3b4]/25 transition hover:-translate-y-0.5 hover:bg-[#f5f7f7] hover:text-[#202829] ${
+          compact ? "w-10 gap-0 px-0 sm:w-auto sm:gap-2 sm:px-3" : "gap-2 px-3"
+        }`}
         aria-label="提交意见反馈"
       >
         <MessageCircle size={16} />

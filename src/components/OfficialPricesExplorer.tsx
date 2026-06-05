@@ -12,7 +12,7 @@ import {
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { BrandIcon } from "@/components/BrandIcon";
-import { CategoryTabBar, type CategoryTabItem } from "@/components/CategoryTabBar";
+import { CategoryTabBar, CategoryTabStrip, type CategoryTabItem } from "@/components/CategoryTabBar";
 import { SiteHeader } from "@/components/SiteHeader";
 import {
   buildOfficialPriceOfferRows,
@@ -72,10 +72,23 @@ export function OfficialPricesExplorer({ dataset }: { dataset: OfficialPricesDat
     <>
       <div className="sticky top-0 z-40 bg-[#f9f9f9]/95 shadow-[0_10px_24px_rgba(45,52,53,0.035)] backdrop-blur-xl">
         <SiteHeader />
-        <CategoryTabBar items={platformTabs} value={platform} onChange={(value) => setPlatform(value as PlatformFilter)} />
+        <CategoryTabBar
+          items={platformTabs}
+          value={platform}
+          onChange={(value) => setPlatform(value as PlatformFilter)}
+          className="hidden md:block"
+        />
       </div>
 
       <main className="mx-auto max-w-[1500px] px-5 py-6 sm:px-8 md:py-10 lg:py-12">
+        <section className="-mx-5 mb-5 border-y border-[#dfe4e5] px-5 py-2 md:hidden">
+          <CategoryTabStrip
+            items={platformTabs}
+            value={platform}
+            onChange={(value) => setPlatform(value as PlatformFilter)}
+          />
+        </section>
+
       <div className="mb-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
         <div className="min-w-0">
           <h1 className="font-serif text-2xl font-semibold tracking-normal text-[#202829] md:text-4xl">
@@ -113,7 +126,7 @@ export function OfficialPricesExplorer({ dataset }: { dataset: OfficialPricesDat
               className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#9aa2a3]"
             />
           </label>
-          <div className="inline-flex h-11 shrink-0 items-center rounded-full bg-[#e4e9ea] p-1">
+          <div className="inline-flex h-12 shrink-0 items-center rounded-full bg-[#e4e9ea] p-1">
             <ViewToggleButton
               active={scopeMode === "products"}
               icon={<PackageCheck size={16} />}
@@ -303,7 +316,7 @@ function ViewToggleButton({
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold transition ${
+      className={`inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold transition ${
         active
           ? "bg-white text-[#202829] shadow-[0_8px_24px_rgba(45,52,53,0.08)]"
           : "text-[#5a6061] hover:text-[#202829]"

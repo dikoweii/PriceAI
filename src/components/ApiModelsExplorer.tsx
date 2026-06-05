@@ -15,7 +15,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { ApiModelIcon } from "@/components/ApiModelIcon";
-import { CategoryTabBar, type CategoryTabItem } from "@/components/CategoryTabBar";
+import { CategoryTabBar, CategoryTabStrip, type CategoryTabItem } from "@/components/CategoryTabBar";
 import { SiteHeader } from "@/components/SiteHeader";
 import {
   apiProviderTypeLabels,
@@ -171,10 +171,23 @@ export function ApiModelsExplorer({ dataset }: { dataset: ApiModelDataset }) {
     <>
       <div className="sticky top-0 z-40 bg-[#f9f9f9]/95 shadow-[0_10px_24px_rgba(45,52,53,0.035)] backdrop-blur-xl">
         <SiteHeader />
-        <CategoryTabBar items={familyTabs} value={family} onChange={(value) => setFamily(value)} />
+        <CategoryTabBar
+          items={familyTabs}
+          value={family}
+          onChange={(value) => setFamily(value)}
+          className="hidden md:block"
+        />
       </div>
 
       <main className="mx-auto max-w-[1500px] px-5 py-6 sm:px-8 md:py-10 lg:py-12">
+        <section className="-mx-5 mb-5 border-y border-[#dfe4e5] px-5 py-2 md:hidden">
+          <CategoryTabStrip
+            items={familyTabs}
+            value={family}
+            onChange={(value) => setFamily(value)}
+          />
+        </section>
+
       <div className="mb-6 space-y-4 md:mb-8 md:space-y-5">
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
           <div className="min-w-0">
@@ -213,7 +226,7 @@ export function ApiModelsExplorer({ dataset }: { dataset: ApiModelDataset }) {
               />
             </label>
 
-            <div className="inline-flex h-11 shrink-0 items-center rounded-full bg-[#e4e9ea] p-1">
+            <div className="inline-flex h-12 shrink-0 items-center rounded-full bg-[#e4e9ea] p-1">
               <ViewToggleButton
                 active={scopeMode === "models"}
                 icon={<PackageCheck size={16} />}
@@ -234,13 +247,13 @@ export function ApiModelsExplorer({ dataset }: { dataset: ApiModelDataset }) {
               />
             </div>
 
-            <div className="inline-flex h-11 shrink-0 items-center rounded-full bg-[#e4e9ea] p-1">
+            <div className="inline-flex h-12 shrink-0 items-center rounded-full bg-[#e4e9ea] p-1">
               {(["CNY", "USD"] as ApiCurrency[]).map((item) => (
                 <button
                   key={item}
                   type="button"
                   onClick={() => setCurrency(item)}
-                  className={`h-9 rounded-full px-3.5 text-sm font-semibold transition ${
+                  className={`h-10 rounded-full px-3.5 text-sm font-semibold transition ${
                     currency === item ? "bg-white text-[#202829] shadow-[0_8px_24px_rgba(45,52,53,0.08)]" : "text-[#5a6061] hover:text-[#202829]"
                   }`}
                 >
@@ -275,7 +288,7 @@ export function ApiModelsExplorer({ dataset }: { dataset: ApiModelDataset }) {
                   type="button"
                   onClick={() => setTypeFilter(item)}
                   aria-label={`类型筛选：${typeFilterLabels[item]}`}
-                  className={`inline-flex h-9 shrink-0 items-center rounded-full px-3.5 text-xs font-semibold transition ${
+                  className={`inline-flex h-10 shrink-0 items-center rounded-full px-3.5 text-xs font-semibold transition ${
                     typeFilter === item
                       ? "bg-[#2d3435] text-[#f8f8f8] shadow-[0_10px_30px_rgba(45,52,53,0.10)]"
                       : "bg-white text-[#5a6061] ring-1 ring-[#adb3b4]/15 hover:bg-[#f7f9f9] hover:text-[#202829]"
@@ -688,7 +701,7 @@ function ViewToggleButton({
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold transition ${
+      className={`inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold transition ${
         active
           ? "bg-white text-[#202829] shadow-[0_8px_24px_rgba(45,52,53,0.08)]"
           : "text-[#5a6061] hover:text-[#202829]"
