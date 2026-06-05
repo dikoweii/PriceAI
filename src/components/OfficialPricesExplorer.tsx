@@ -88,7 +88,7 @@ export function OfficialPricesExplorer({ dataset }: { dataset: OfficialPricesDat
         </div>
       </div>
 
-      <section className="mb-6 space-y-3">
+      <section className="mb-6 space-y-4">
         <div className="flex gap-2 overflow-x-auto pb-1">
           <PlatformPill
             active={platform === "all"}
@@ -107,16 +107,7 @@ export function OfficialPricesExplorer({ dataset }: { dataset: OfficialPricesDat
           ))}
         </div>
 
-        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
-          <label className="flex h-11 min-w-0 items-center gap-2 rounded-full bg-white px-4 shadow-[0_16px_45px_rgba(45,52,53,0.05)] ring-1 ring-[#adb3b4]/15 md:w-[380px]">
-            <Search size={16} className="shrink-0 text-[#5a6061]" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={scopeMode === "products" ? "搜索套餐、平台、最低地区" : "搜索套餐、地区或币种"}
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#9aa2a3]"
-            />
-          </label>
+        <div className="flex gap-2 overflow-x-auto pb-1">
           <div className="inline-flex h-11 shrink-0 items-center rounded-full bg-[#e4e9ea] p-1">
             <ViewToggleButton
               active={scopeMode === "products"}
@@ -131,6 +122,18 @@ export function OfficialPricesExplorer({ dataset }: { dataset: OfficialPricesDat
               onClick={() => setScopeMode("offers")}
             />
           </div>
+        </div>
+
+        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
+          <label className="flex h-11 min-w-0 items-center gap-2 rounded-full bg-white px-4 shadow-[0_16px_45px_rgba(45,52,53,0.05)] ring-1 ring-[#adb3b4]/15 md:w-[380px]">
+            <Search size={16} className="shrink-0 text-[#5a6061]" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={scopeMode === "products" ? "搜索套餐、平台、最低地区" : "搜索套餐、地区或币种"}
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#9aa2a3]"
+            />
+          </label>
           <div className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full bg-[#e4e9ea] px-4 text-sm font-semibold text-[#2d3435]">
             <ArrowUpDown size={17} />
             {scopeMode === "products" ? "最低地区价优先" : "折算人民币从低到高"}
@@ -171,7 +174,7 @@ function OfficialPlanTable({ summaries }: { summaries: OfficialPricePlanSummary[
               <TableHead>最低地区</TableHead>
               <TableHead>地区样本</TableHead>
               <TableHead>最近更新</TableHead>
-              <TableHead>操作</TableHead>
+              <TableHead className="w-[120px] text-center">操作</TableHead>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#edf0f1]">
@@ -206,10 +209,10 @@ function OfficialPlanTable({ summaries }: { summaries: OfficialPricePlanSummary[
                   </td>
                   <td className="px-5 py-4 text-[#2d3435]">{summary.sampleCount}</td>
                   <td className="px-5 py-4 text-[#5a6061]">{formatRelativeTime(summary.latestFetchedAt)}</td>
-                  <td className="px-5 py-4">
+                  <td className="w-[120px] px-5 py-4 text-center">
                     <Link
                       href={href}
-                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full bg-[#2d3435] px-3 text-xs font-semibold text-[#f8f8f8] transition hover:bg-[#1f2526]"
+                      className="inline-flex h-9 min-w-[76px] items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[#2d3435] px-3 text-xs font-semibold text-[#f8f8f8] transition hover:bg-[#1f2526]"
                     >
                       查看
                       <ChevronRight size={14} />
@@ -363,8 +366,8 @@ function EmptyState({ text }: { text: string }) {
   );
 }
 
-function TableHead({ children }: { children: ReactNode }) {
-  return <th className="px-5 py-3 font-semibold">{children}</th>;
+function TableHead({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <th className={`px-5 py-3 font-semibold ${className}`}>{children}</th>;
 }
 
 function billingPeriodLabel(period: OfficialPricePlanSummary["billingPeriod"]) {
