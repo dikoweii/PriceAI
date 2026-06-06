@@ -22,6 +22,13 @@ import { getApiModelDataset } from "@/lib/api-models-db";
 export const dynamicParams = true;
 export const revalidate = 300;
 
+export async function generateStaticParams() {
+  const dataset = await getApiModelDataset();
+  return dataset.providers.map((provider) => ({
+    id: provider.id,
+  }));
+}
+
 export async function generateMetadata({
   params,
 }: {

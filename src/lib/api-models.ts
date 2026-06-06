@@ -151,6 +151,20 @@ export type ApiModelDataset = {
   offers: ApiModelOffer[];
 };
 
+type ApiModelDatasetIndex = {
+  modelById: Map<string, ApiModel>;
+  providerById: Map<string, ApiProvider>;
+  sortedModels: ApiModel[];
+  sortedPlans: ApiPlan[];
+  offersWithRelations: ApiModelOfferWithRelations[];
+  offersByModelId: Map<string, ApiModelOfferWithRelations[]>;
+  offersByProviderId: Map<string, ApiModelOfferWithRelations[]>;
+  plansByModelId: Map<string, ApiPlan[]>;
+  plansByProviderId: Map<string, ApiPlan[]>;
+};
+
+const apiModelDatasetIndexCache = new WeakMap<ApiModelDataset, ApiModelDatasetIndex>();
+
 export const apiModelUpdatedAt = "2026-06-05";
 
 export const apiModelFxSummary: ApiModelFxSummary = {
@@ -1494,23 +1508,26 @@ export function getApiModelFamilyOptions(dataset: ApiModelDataset = staticApiMod
 }
 
 export function getApiModels(scope: ApiModelScope = "all", dataset: ApiModelDataset = staticApiModelDataset) {
-  return dataset.models
+  const index = getApiModelDatasetIndex(dataset);
+  return index.sortedModels
     .filter((model) => scope === "all" || apiModelFamilyId(model.family) === scope)
-    .sort((a, b) => compareModel(a, b));
+    .slice();
 }
 
 export function getApiModel(id: string, dataset: ApiModelDataset = staticApiModelDataset) {
-  return dataset.models.find((model) => model.id === id) ?? null;
+  return getApiModelDatasetIndex(dataset).modelById.get(id) ?? null;
 }
 
 export function getApiModelSummaries(scope: ApiModelScope = "all", dataset: ApiModelDataset = staticApiModelDataset): ApiModelSummary[] {
-  return getApiModels(scope, dataset).map((model) => buildApiModelSummary(model, dataset));
+  const index = getApiModelDatasetIndex(dataset);
+  return getApiModels(scope, dataset).map((model) => buildApiModelSummary(model, dataset, index));
 }
 
 export function getApiModelSummary(id: string, dataset: ApiModelDataset = staticApiModelDataset) {
-  const model = getApiModel(id, dataset);
+  const index = getApiModelDatasetIndex(dataset);
+  const model = index.modelById.get(id) ?? null;
   if (!model) return null;
-  return buildApiModelSummary(model, dataset);
+  return buildApiModelSummary(model, dataset, index);
 }
 
 export function getApiProviders(scope: ApiModelScope = "all", dataset: ApiModelDataset = staticApiModelDataset) {
@@ -1527,58 +1544,52 @@ export function getApiProviders(scope: ApiModelScope = "all", dataset: ApiModelD
 }
 
 export function getApiProvider(id: string, dataset: ApiModelDataset = staticApiModelDataset) {
-  return dataset.providers.find((provider) => provider.id === id) ?? null;
+  return getApiModelDatasetIndex(dataset).providerById.get(id) ?? null;
 }
 
 export function getApiProviderSummaries(scope: ApiModelScope = "all", dataset: ApiModelDataset = staticApiModelDataset): ApiProviderSummary[] {
-  return getApiProviders(scope, dataset).map((provider) => buildApiProviderSummary(provider, scope, dataset));
+  const index = getApiModelDatasetIndex(dataset);
+  return getApiProviders(scope, dataset).map((provider) => buildApiProviderSummary(provider, scope, dataset, index));
 }
 
 export function getApiProviderSummary(id: string, dataset: ApiModelDataset = staticApiModelDataset) {
-  const provider = getApiProvider(id, dataset);
+  const index = getApiModelDatasetIndex(dataset);
+  const provider = index.providerById.get(id) ?? null;
   if (!provider) return null;
-  return buildApiProviderSummary(provider, "all", dataset);
+  return buildApiProviderSummary(provider, "all", dataset, index);
 }
 
 export function getApiModelOffers(scope: ApiModelScope = "all", dataset: ApiModelDataset = staticApiModelDataset): ApiModelOfferWithRelations[] {
-  return dataset.offers
-    .map((offer) => withOfferRelations(offer, dataset))
-    .filter((offer): offer is ApiModelOfferWithRelations => Boolean(offer))
-    .filter((offer) => scope === "all" || apiModelFamilyId(offer.model.family) === scope)
-    .sort(compareOffer);
+  return getApiModelDatasetIndex(dataset).offersWithRelations.filter((offer) => scope === "all" || apiModelFamilyId(offer.model.family) === scope);
 }
 
 export function getApiModelOffersByModel(modelId: string, dataset: ApiModelDataset = staticApiModelDataset) {
-  return getApiModelOffers("all", dataset).filter((offer) => offer.modelId === modelId);
+  return [...(getApiModelDatasetIndex(dataset).offersByModelId.get(modelId) || [])];
 }
 
 export function getApiModelOffersByProvider(providerId: string, dataset: ApiModelDataset = staticApiModelDataset) {
-  return getApiModelOffers("all", dataset).filter((offer) => offer.providerId === providerId);
+  return [...(getApiModelDatasetIndex(dataset).offersByProviderId.get(providerId) || [])];
 }
 
 export function getApiPlans(scope: ApiModelScope = "all", dataset: ApiModelDataset = staticApiModelDataset) {
-  return dataset.plans
+  const index = getApiModelDatasetIndex(dataset);
+  return index.sortedPlans
     .filter((plan) => {
       if (scope === "all") return true;
       if (plan.modelIds.length === 0) return true;
       return plan.modelIds.some((modelId) => {
-        const model = getApiModel(modelId, dataset);
+        const model = index.modelById.get(modelId) ?? null;
         return model ? apiModelFamilyId(model.family) === scope : false;
       });
-    })
-    .sort((a, b) => {
-      const typeDelta = providerTypeRank(a.type) - providerTypeRank(b.type);
-      if (typeDelta !== 0) return typeDelta;
-      return a.name.localeCompare(b.name, "zh-CN");
     });
 }
 
 export function getApiPlansByModel(modelId: string, dataset: ApiModelDataset = staticApiModelDataset) {
-  return dataset.plans.filter((plan) => plan.modelIds.includes(modelId));
+  return [...(getApiModelDatasetIndex(dataset).plansByModelId.get(modelId) || [])];
 }
 
 export function getApiPlansByProvider(providerId: string, dataset: ApiModelDataset = staticApiModelDataset) {
-  return dataset.plans.filter((plan) => plan.providerId === providerId);
+  return [...(getApiModelDatasetIndex(dataset).plansByProviderId.get(providerId) || [])];
 }
 
 export function apiModelFamilyId(family: string) {
@@ -1595,9 +1606,74 @@ export function apiProviderTypeRank(type: ApiProviderType) {
   return providerTypeRank(type);
 }
 
-function buildApiModelSummary(model: ApiModel, dataset: ApiModelDataset): ApiModelSummary {
-  const offers = getApiModelOffersByModel(model.id, dataset);
-  const plans = getApiPlansByModel(model.id, dataset);
+function getApiModelDatasetIndex(dataset: ApiModelDataset): ApiModelDatasetIndex {
+  const cached = apiModelDatasetIndexCache.get(dataset);
+  if (cached) return cached;
+
+  const modelById = new Map(dataset.models.map((model) => [model.id, model]));
+  const providerById = new Map(dataset.providers.map((provider) => [provider.id, provider]));
+  const sortedModels = [...dataset.models].sort(compareModel);
+  const sortedPlans = [...dataset.plans].sort(comparePlan);
+  const offersByModelId = new Map<string, ApiModelOfferWithRelations[]>();
+  const offersByProviderId = new Map<string, ApiModelOfferWithRelations[]>();
+  const plansByModelId = new Map<string, ApiPlan[]>();
+  const plansByProviderId = new Map<string, ApiPlan[]>();
+
+  const offersWithRelations = dataset.offers
+    .map((offer): ApiModelOfferWithRelations | null => {
+      const model = modelById.get(offer.modelId) ?? null;
+      const provider = providerById.get(offer.providerId) ?? null;
+      if (!model || !provider) return null;
+
+      return {
+        ...offer,
+        model,
+        provider,
+      };
+    })
+    .filter((offer): offer is ApiModelOfferWithRelations => Boolean(offer))
+    .sort(compareOffer);
+
+  for (const offer of offersWithRelations) {
+    pushGrouped(offersByModelId, offer.modelId, offer);
+    pushGrouped(offersByProviderId, offer.providerId, offer);
+  }
+
+  for (const plan of sortedPlans) {
+    pushGrouped(plansByProviderId, plan.providerId, plan);
+    for (const modelId of plan.modelIds) {
+      pushGrouped(plansByModelId, modelId, plan);
+    }
+  }
+
+  const index = {
+    modelById,
+    providerById,
+    sortedModels,
+    sortedPlans,
+    offersWithRelations,
+    offersByModelId,
+    offersByProviderId,
+    plansByModelId,
+    plansByProviderId,
+  };
+  apiModelDatasetIndexCache.set(dataset, index);
+  return index;
+}
+
+function pushGrouped<T>(map: Map<string, T[]>, key: string, value: T) {
+  const values = map.get(key);
+  if (values) {
+    values.push(value);
+    return;
+  }
+
+  map.set(key, [value]);
+}
+
+function buildApiModelSummary(model: ApiModel, dataset: ApiModelDataset, index = getApiModelDatasetIndex(dataset)): ApiModelSummary {
+  const offers = index.offersByModelId.get(model.id) || [];
+  const plans = index.plansByModelId.get(model.id) || [];
   const providerNames = new Set(offers.map((offer) => offer.provider.name));
   plans.forEach((plan) => providerNames.add(plan.providerName));
   const primaryOffer = offers[0] ?? null;
@@ -1622,12 +1698,19 @@ function buildApiModelSummary(model: ApiModel, dataset: ApiModelDataset): ApiMod
   };
 }
 
-function buildApiProviderSummary(provider: ApiProvider, scope: ApiModelScope, dataset: ApiModelDataset): ApiProviderSummary {
-  const offers = getApiModelOffers(scope, dataset).filter((offer) => offer.providerId === provider.id);
-  const plans = getApiPlans(scope, dataset).filter((plan) => plan.providerId === provider.id);
+function buildApiProviderSummary(provider: ApiProvider, scope: ApiModelScope, dataset: ApiModelDataset, index = getApiModelDatasetIndex(dataset)): ApiProviderSummary {
+  const offers = (index.offersByProviderId.get(provider.id) || []).filter((offer) => scope === "all" || apiModelFamilyId(offer.model.family) === scope);
+  const plans = (index.plansByProviderId.get(provider.id) || []).filter((plan) => {
+    if (scope === "all") return true;
+    if (plan.modelIds.length === 0) return true;
+    return plan.modelIds.some((modelId) => {
+      const model = index.modelById.get(modelId) ?? null;
+      return model ? apiModelFamilyId(model.family) === scope : false;
+    });
+  });
   const models = uniqueById([
     ...offers.map((offer) => offer.model),
-    ...plans.flatMap((plan) => plan.modelIds.map((modelId) => getApiModel(modelId, dataset)).filter((model): model is ApiModel => Boolean(model))),
+    ...plans.flatMap((plan) => plan.modelIds.map((modelId) => index.modelById.get(modelId) ?? null).filter((model): model is ApiModel => Boolean(model))),
   ]);
 
   return {
@@ -1646,8 +1729,9 @@ function buildApiProviderSummary(provider: ApiProvider, scope: ApiModelScope, da
 }
 
 function withOfferRelations(offer: ApiModelOffer, dataset: ApiModelDataset): ApiModelOfferWithRelations | null {
-  const model = getApiModel(offer.modelId, dataset);
-  const provider = getApiProvider(offer.providerId, dataset);
+  const index = getApiModelDatasetIndex(dataset);
+  const model = index.modelById.get(offer.modelId) ?? null;
+  const provider = index.providerById.get(offer.providerId) ?? null;
   if (!model || !provider) return null;
 
   return {
@@ -2022,6 +2106,12 @@ function compareOffer(a: ApiModelOfferWithRelations, b: ApiModelOfferWithRelatio
   if (typeDelta !== 0) return typeDelta;
 
   return a.provider.name.localeCompare(b.provider.name, "zh-CN");
+}
+
+function comparePlan(a: ApiPlan, b: ApiPlan) {
+  const typeDelta = providerTypeRank(a.type) - providerTypeRank(b.type);
+  if (typeDelta !== 0) return typeDelta;
+  return a.name.localeCompare(b.name, "zh-CN");
 }
 
 function compareModel(a: ApiModel, b: ApiModel) {

@@ -534,7 +534,7 @@ const feedbackReasonOptions = [
 ];
 
 function Skeleton({ className }: { className: string }) {
-  return <div className={`animate-pulse bg-[#e4e9ea] ${className}`} />;
+  return <div className={`bg-[#e4e9ea] ${className}`} />;
 }
 
 function isOfferAvailable(offer: RawOffer): boolean {

@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { BrandIcon } from "@/components/BrandIcon";
 import { SiteHeader } from "@/components/SiteHeader";
 import {
+  buildOfficialPricePlanSummaries,
   getOfficialPricePlanSummaryFromDataset,
   getOfficialPriceRowsByIdFromDataset,
 } from "@/lib/official-prices";
@@ -12,6 +13,13 @@ import { getOfficialPricesDataset } from "@/lib/official-prices-db";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 
 export const dynamicParams = true;
+
+export async function generateStaticParams() {
+  const dataset = await getOfficialPricesDataset();
+  return buildOfficialPricePlanSummaries(dataset, "all").map((summary) => ({
+    id: summary.id,
+  }));
+}
 
 export async function generateMetadata({
   params,

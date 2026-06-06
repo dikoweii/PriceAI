@@ -786,8 +786,30 @@ export async function getPublicProductGroup(id: string) {
 }
 
 export async function getPublicProductSummary(id: string) {
+  const summary = await getPublicProductSummaryFromDatabase(id);
+  if (summary) return summary;
+
   const explorerData = await getExplorerData();
   return explorerData.products.find((product) => product.id === id || product.slug === id) || null;
+}
+
+async function getPublicProductSummaryFromDatabase(id: string): Promise<ExplorerProductSummary | null> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase.rpc("get_public_product_summary", {
+    p_product_key: id,
+  });
+
+  if (error) {
+    console.warn("Falling back to explorer product summary because RPC failed:", error.message);
+    return null;
+  }
+
+  const row = Array.isArray(data) ? data[0] as Record<string, unknown> | undefined : null;
+  if (!row) return null;
+
+  return mapPublicProductSummaryRow(row);
 }
 
 export async function listPublicProductOffers(id: string, filters: ProductOfferListFilters = {}) {
@@ -841,6 +863,9 @@ async function loadPublicProductOffers(
         };
       }
 
+      const paged = await listPublicProductOffersPage(product.id, { limit, offset });
+      if (paged) return paged;
+
       const offers = (await listVisibleProductOfferRows(product.id))
         .map(mapRawOffer)
         .filter((offer) => resolveOfferProduct(offer, products.length ? products : canonicalCatalog).id === product.id)
@@ -871,6 +896,54 @@ async function loadPublicProductOffers(
     limited: total > offset + limit,
     generatedAt: new Date().toISOString(),
   };
+}
+
+async function listPublicProductOffersPage(
+  productId: string,
+  filters: Required<Pick<ProductOfferListFilters, "limit" | "offset">>,
+): Promise<{ offers: RawOffer[]; total: number; limited: boolean; generatedAt: string } | null> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase.rpc("list_public_product_offers_page", {
+    p_product_id: productId,
+    p_limit: filters.limit,
+    p_offset: filters.offset,
+  });
+
+  if (error) {
+    console.warn("Falling back to in-process product offer pagination because RPC failed:", error.message);
+    return null;
+  }
+
+  const rows = ((data || []) as unknown as Record<string, unknown>[]);
+  const total = rows.length ? Number(rows[0].total_count || 0) : await countVisibleProductOffers(productId);
+  const offers = rows.map((row) => {
+    const offerRow = { ...row };
+    delete offerRow.total_count;
+    return mapRawOffer(offerRow);
+  });
+
+  return {
+    offers,
+    total,
+    limited: total > filters.offset + filters.limit,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+async function countVisibleProductOffers(productId: string): Promise<number> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return 0;
+
+  const { count, error } = await supabase
+    .from("raw_offers")
+    .select("id", { count: "exact", head: true })
+    .eq("hidden", false)
+    .eq("canonical_product_id", productId);
+
+  if (error) throw error;
+  return count || 0;
 }
 
 export async function listPublicOffers(filters: OfferListFilters = {}) {
@@ -997,6 +1070,40 @@ function toExplorerProductSummary(product: DashboardData["products"][number]): E
     latestSeenAt: product.latestSeenAt,
     anomalyFlags: product.anomalyFlags,
     offerSearchText: buildOfferSearchText(product.offers),
+  };
+}
+
+function mapPublicProductSummaryRow(row: Record<string, unknown>): ExplorerProductSummary {
+  const lowestOffer = row.lowest_offer && typeof row.lowest_offer === "object"
+    ? mapRawOffer(row.lowest_offer as Record<string, unknown>)
+    : null;
+  const inStockCount = Number(row.in_stock_count || 0);
+  const outOfStockCount = Number(row.out_of_stock_count || 0);
+  const hasOutOfStock = Boolean(row.has_out_of_stock);
+
+  return {
+    id: String(row.id),
+    slug: String(row.slug || row.id),
+    displayName: String(row.display_name || row.slug || row.id),
+    platform: String(row.platform || "其他"),
+    productType: String(row.product_type || "其他"),
+    spec: String(row.spec || ""),
+    summary: String(row.summary || ""),
+    aliases: Array.isArray(row.aliases) ? row.aliases.map(String) : [],
+    updatedAt: row.updated_at ? String(row.updated_at) : null,
+    offerCount: Number(row.offer_count || 0),
+    inStockCount,
+    outOfStockCount,
+    lowestPrice: row.lowest_price === null || row.lowest_price === undefined ? null : Number(row.lowest_price),
+    lowestPriceLabel: lowestOffer ? "有货" : "暂无有货价",
+    lowestPriceTone: lowestOffer ? "good" : "muted",
+    lowestOffer,
+    latestSeenAt: row.latest_seen_at ? String(row.latest_seen_at) : null,
+    anomalyFlags: [
+      ...(hasOutOfStock ? ["缺货"] : []),
+      ...(!inStockCount && outOfStockCount ? ["全部缺货"] : []),
+    ],
+    offerSearchText: "",
   };
 }
 

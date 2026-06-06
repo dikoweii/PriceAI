@@ -108,8 +108,10 @@ export function ApiModelsExplorer({ dataset }: { dataset: ApiModelDataset }) {
     [dataset, family, mobileSort, normalizedQuery, typeFilter],
   );
 
-  const freeProviderIds = new Set(dataset.providers.filter((provider) => provider.type === "free").map((provider) => provider.id));
-  const freeCount = dataset.offers.filter((offer) => freeProviderIds.has(offer.providerId)).length;
+  const freeCount = useMemo(() => {
+    const freeProviderIds = new Set(dataset.providers.filter((provider) => provider.type === "free").map((provider) => provider.id));
+    return dataset.offers.filter((offer) => freeProviderIds.has(offer.providerId)).length;
+  }, [dataset.offers, dataset.providers]);
   const resultCount =
     scopeMode === "models"
       ? modelSummaries.length
