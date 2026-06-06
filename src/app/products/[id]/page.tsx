@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ProductDetailHeader } from "@/components/ProductDetailHeader";
 import { ProductOffersPanel } from "@/components/ProductOffersPanel";
-import { getPublicProductSummary, listPublicProductOffers } from "@/lib/data";
+import { getPublicProductSummary } from "@/lib/data";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 
 export const revalidate = 0;
@@ -29,10 +29,7 @@ export default async function ProductDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [product, initialOffers] = await Promise.all([
-    getPublicProductSummary(id),
-    listPublicProductOffers(id, { limit: 80, offset: 0 }),
-  ]);
+  const product = await getPublicProductSummary(id);
 
   if (!product) notFound();
 
@@ -82,7 +79,6 @@ export default async function ProductDetail({
           productSlug={product.slug}
           productName={product.displayName}
           initialCount={product.offerCount}
-          initialData={initialOffers}
         />
 
         <p className="mt-8 text-xs leading-6 text-[#5a6061]">

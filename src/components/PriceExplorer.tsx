@@ -895,7 +895,6 @@ function ProductTable({
                   <td className="max-w-[310px] px-5 py-4">
                     <Link
                       href={productHref}
-                      prefetch={false}
                       onMouseEnter={() => onIntent(productHref)}
                       onFocus={() => onIntent(productHref)}
                       onClick={() => trackProductDetailOpen(product)}
@@ -947,7 +946,6 @@ function ProductTable({
                   <td className="px-5 py-4">
                     <Link
                       href={productHref}
-                      prefetch={false}
                       onMouseEnter={() => onIntent(productHref)}
                       onFocus={() => onIntent(productHref)}
                       onClick={() => trackProductDetailOpen(product)}
@@ -1219,7 +1217,6 @@ function ProductCard({
 
       <Link
         href={productHref}
-        prefetch={false}
         onMouseEnter={() => onIntent(productHref)}
         onFocus={() => onIntent(productHref)}
         onClick={() => trackProductDetailOpen(product)}
@@ -1264,7 +1261,6 @@ function ProductCard({
       <div className="mt-auto pt-6">
         <Link
           href={productHref}
-          prefetch={false}
           onMouseEnter={() => onIntent(productHref)}
           onFocus={() => onIntent(productHref)}
           onClick={() => trackProductDetailOpen(product)}
@@ -1317,7 +1313,6 @@ function MobileProductCard({
         </div>
         <Link
           href={productHref}
-          prefetch={false}
           onMouseEnter={() => onIntent(productHref)}
           onFocus={() => onIntent(productHref)}
           onClick={() => trackProductDetailOpen(product)}
