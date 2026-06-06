@@ -23,7 +23,8 @@
     "migrate:remote:freshness": "node scripts/apply-remote-migration.mjs",
     "setup:ga4": "node scripts/setup-ga4.mjs",
     "audit:catalog": "node scripts/audit-catalog.mjs",
-    "test:catalog": "node scripts/test-catalog.mjs"
+    "test:catalog": "node scripts/test-catalog.mjs",
+    "filter:ldxp-sqlite": "node scripts/filter-ldxp-sqlite-candidates.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.3",
