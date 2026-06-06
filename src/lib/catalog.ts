@@ -329,6 +329,16 @@ export const canonicalCatalog: CanonicalProduct[] = [
     aliases: ["suno", "suno pro", "suno 账号"],
   },
   {
+    id: "apple-id-account",
+    slug: "apple-id-account",
+    displayName: "Apple ID / 苹果账号",
+    platform: "其他",
+    productType: "工具账号",
+    spec: "Apple ID",
+    summary: "Apple ID、苹果 ID、美区 ID、土区 ID 等地区账号或相关权益。",
+    aliases: ["apple id", "苹果 id", "苹果账号", "美区 id", "土区 id", "apple 账号"],
+  },
+  {
     id: "other-tool-account",
     slug: "other-tool-account",
     displayName: "其他工具账号",
@@ -727,7 +737,21 @@ function isOtherTool(value: string): boolean {
     "telegram",
     "facebook",
     "苹果 id",
+    "苹果id",
     "apple id",
+    "appleid",
+    "苹果账号",
+    "apple 账号",
+    "美区 id",
+    "美区id",
+    "土区 id",
+    "土区id",
+    "日区 id",
+    "日区id",
+    "港区 id",
+    "港区id",
+    "外区 id",
+    "外区id",
   ]);
 }
 
@@ -737,8 +761,16 @@ function classifyOtherTool(value: string): string {
   if (matches(value, ["windsurf", "wind surf"])) return "windsurf-account";
   if (matches(value, ["perplexity"])) return "perplexity-account";
   if (matches(value, ["suno"])) return "suno-account";
+  if (isAppleIdAccount(value)) return "apple-id-account";
 
   return "other-tool-account";
+}
+
+function isAppleIdAccount(value: string): boolean {
+  if (matches(value, ["apple id", "appleid", "苹果 id", "苹果id", "苹果账号", "apple 账号"])) return true;
+  if (matches(value, ["美区id", "美区 id", "土区id", "土区 id", "日区id", "日区 id", "港区id", "港区 id", "外区id", "外区 id"])) return true;
+
+  return matches(value, ["id"]) && matches(value, ["苹果", "apple"]) && matches(value, ["账号", "账户", "成品号", "地区"]);
 }
 
 function isNegatedPlus(value: string): boolean {

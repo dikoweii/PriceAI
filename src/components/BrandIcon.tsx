@@ -20,6 +20,7 @@ const iconByProductId: Record<string, string> = {
   "windsurf-account": "/brand-icons/windsurf.svg",
   "perplexity-account": "/brand-icons/perplexity.svg",
   "suno-account": "/brand-icons/suno.svg",
+  "apple-id-account": "/brand-icons/apple.png",
 };
 
 export function BrandIcon({

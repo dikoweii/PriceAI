@@ -1817,6 +1817,7 @@ function productIcon(product: Pick<CanonicalProduct, "id" | "platform" | "produc
     "windsurf-account",
     "perplexity-account",
     "suno-account",
+    "apple-id-account",
   ]);
 
   if (brandedProductIds.has(product.id)) {

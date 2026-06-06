@@ -16,6 +16,7 @@ These assets are cached locally for stable rendering and performance. They are s
 | `nvidia.png` | `https://www.nvidia.com/favicon.ico` | Converted from official favicon to PNG. |
 | `ollama.png` | `https://ollama.com/public/ollama.png` | Official Ollama public image used for compact provider rows. |
 | `fireworks.png` | `https://fireworks.ai/favicon.ico` | Converted from official favicon to PNG. |
+| `apple.png` | `https://appleid.cdn-apple.com/appleid/button/logo?color=black&border=false&border_radius=0&scale=2&size=30` | Official Apple ID sign-in logo endpoint, cached as a transparent PNG for Apple ID account rows. |
 | `stepfun.png` | `https://platform.stepfun.com/images/title-logo.png` | Official StepFun platform title logo. |
 | `baiducloud.png` | `https://bce.bdstatic.com/img/favicon.ico` | Converted from Baidu Cloud/BCE official public favicon to PNG. |
 | `jdcloud.png` | `https://img1.jcloudcs.com/portal/favicon.ico` | Converted from JD Cloud official public favicon to PNG. |

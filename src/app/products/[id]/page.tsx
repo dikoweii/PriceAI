@@ -66,7 +66,7 @@ export default async function ProductDetail({
         <section className="rounded-lg bg-[#f2f4f4] p-5 shadow-[0_20px_60px_rgba(45,52,53,0.04)] lg:p-6">
           <div className="min-w-0 max-w-4xl">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge>{platformIcon(product.platform)} {product.platform}</Badge>
+              <Badge>{platformIcon(product.platform, product.id)} {product.platform}</Badge>
               <Badge>{productTypeLabel(product.productType)}</Badge>
               <Badge>{product.spec}</Badge>
             </div>
@@ -205,9 +205,10 @@ function Badge({ children }: { children: React.ReactNode }) {
   );
 }
 
-function platformIcon(platform: string) {
+function platformIcon(platform: string, productId?: string) {
   const className = "h-[15px] w-[15px]";
 
+  if (productId) return <BrandIcon platform={platform} productId={productId} className={className} />;
   if (platform !== "其他") return <BrandIcon platform={platform} className={className} />;
   return <Layers3 className={`${className} text-[#5a6061]`} />;
 }

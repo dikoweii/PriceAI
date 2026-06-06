@@ -47,6 +47,9 @@ const cases = [
   ["chatGPT API中转 充值余额100刀 8折", "openai-api-cdk"],
   ["Cursor Pro 成品号", "cursor-account"],
   ["Kiro 积分 成品号", "kiro-account"],
+  ["Apple ID 美区成品账号 质保首登", "apple-id-account"],
+  ["苹果ID 土区账号 可改密", "apple-id-account"],
+  ["美区ID 独享账号 自动发货", "apple-id-account"],
 ];
 
 for (const [title, expected] of cases) {
