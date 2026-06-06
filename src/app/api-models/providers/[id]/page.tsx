@@ -150,18 +150,19 @@ export default async function ApiProviderDetailPage({
 
         <section className="mt-5 overflow-hidden rounded-lg bg-white shadow-[0_20px_55px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15">
           <div className="overflow-x-auto">
-            <table className="min-w-[1460px] w-full border-collapse text-left text-sm">
+            <table className="min-w-[940px] w-full table-fixed border-collapse text-left text-sm">
+              <colgroup>
+                <col className="w-[30%]" />
+                <col className="w-[30%]" />
+                <col className="w-[27%]" />
+                <col className="w-[13%]" />
+              </colgroup>
               <thead className="bg-[#f2f4f4] text-[0.68rem] font-semibold text-[#5a6061]">
                 <tr>
                   <TableHead>模型</TableHead>
-                  <TableHead>调用模型名</TableHead>
-                  <TableHead>输入价</TableHead>
-                  <TableHead>输出价</TableHead>
-                  <TableHead>缓存读/写</TableHead>
-                  <TableHead>免费/Token Plan 额度</TableHead>
-                  <TableHead>限制</TableHead>
+                  <TableHead>价格</TableHead>
+                  <TableHead>额度与限制</TableHead>
                   <TableHead>来源</TableHead>
-                  <TableHead>更新时间</TableHead>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#edf0f1]">
@@ -215,45 +216,42 @@ function ApiOfferRow({ offer, currency }: { offer: ApiModelOfferWithRelations; c
   return (
     <tr className="align-top transition hover:bg-[#f7f9f9]">
       <td className="px-5 py-4">
-        <Link href={`/api-models/${offer.modelId}`} className="block max-w-[230px] font-semibold leading-6 text-[#202829] hover:text-[#2f7a4b]">
+        <Link href={`/api-models/${offer.modelId}`} className="block truncate font-semibold leading-6 text-[#202829] hover:text-[#2f7a4b]">
           {offer.model.displayName}
         </Link>
         <p className="mt-1 text-xs font-medium text-[#5a6061]">{offer.model.family}</p>
+        <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#5a6061]">调用：{offer.routeModelId ?? offer.model.modelId}</p>
       </td>
       <td className="px-5 py-4">
-        <p className="max-w-[230px] font-semibold leading-6 text-[#202829]">{offer.routeModelId ?? offer.model.modelId}</p>
+        <div className="grid gap-2 sm:grid-cols-3">
+          <PriceMetric label="输入" value={formatApiPrice(offer.inputPrice, currency)} />
+          <PriceMetric label="输出" value={formatApiPrice(offer.outputPrice, currency)} />
+          <PriceMetric
+            label="缓存"
+            value={offer.cacheReadPrice ? formatApiPrice(offer.cacheReadPrice, currency) : "待确认"}
+            helper={offer.cacheWritePrice ? `写入：${formatApiPrice(offer.cacheWritePrice, currency)}` : undefined}
+          />
+        </div>
       </td>
       <td className="px-5 py-4">
-        <PriceText value={formatApiPrice(offer.inputPrice, currency)} />
+        <p className="line-clamp-2 text-sm font-medium leading-6 text-[#2d3435]">{formatApiDisplayText(offer.freeOrPlan)}</p>
+        {offer.notes ? <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#5a6061]">{formatApiDisplayText(offer.notes)}</p> : null}
+        <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#5a6061]">{formatApiDisplayText(offer.limitSummary)}</p>
       </td>
       <td className="px-5 py-4">
-        <PriceText value={formatApiPrice(offer.outputPrice, currency)} />
+        <div className="flex min-w-0 flex-col items-start gap-2">
+          <a
+            href={sourceHref}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#e4e9ea] px-3 py-2 text-xs font-semibold text-[#2d3435] transition hover:bg-[#dde4e5]"
+          >
+            <span className="truncate">{offer.sourceLabel}</span>
+            <ExternalLink size={13} className="shrink-0" />
+          </a>
+          <span className="text-xs font-medium text-[#5a6061]">{formatDatasetDate(offer.updatedAt)}</span>
+        </div>
       </td>
-      <td className="px-5 py-4">
-        <p className="max-w-[210px] text-sm font-semibold leading-6 text-[#202829]">
-          {offer.cacheReadPrice ? formatApiPrice(offer.cacheReadPrice, currency) : "待确认"}
-        </p>
-        {offer.cacheWritePrice ? <p className="mt-1 max-w-[210px] text-xs leading-5 text-[#5a6061]">写入：{formatApiPrice(offer.cacheWritePrice, currency)}</p> : null}
-      </td>
-      <td className="px-5 py-4">
-        <p className="max-w-[250px] text-sm leading-6 text-[#2d3435]">{formatApiDisplayText(offer.freeOrPlan)}</p>
-        {offer.notes ? <p className="mt-1 max-w-[250px] text-xs leading-5 text-[#5a6061]">{formatApiDisplayText(offer.notes)}</p> : null}
-      </td>
-      <td className="px-5 py-4">
-        <p className="max-w-[270px] text-sm leading-6 text-[#5a6061]">{formatApiDisplayText(offer.limitSummary)}</p>
-      </td>
-      <td className="px-5 py-4">
-        <a
-          href={sourceHref}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full bg-[#e4e9ea] px-3 text-xs font-semibold text-[#2d3435] transition hover:bg-[#dde4e5]"
-        >
-          {offer.sourceLabel}
-          <ExternalLink size={13} />
-        </a>
-      </td>
-      <td className="px-5 py-4 text-xs font-medium text-[#5a6061]">{offer.updatedAt}</td>
     </tr>
   );
 }
@@ -321,10 +319,20 @@ function TypeChip({ type }: { type: ApiProviderType }) {
   );
 }
 
-function PriceText({ value }: { value: string }) {
-  return <p className="max-w-[190px] font-semibold leading-6 text-[#202829]">{value}</p>;
-}
-
 function TableHead({ children }: { children: React.ReactNode }) {
   return <th className="px-5 py-3 font-semibold">{children}</th>;
+}
+
+function PriceMetric({ label, value, helper }: { label: string; value: string; helper?: string }) {
+  return (
+    <div className="min-w-0 rounded-lg bg-[#f7f9f9] px-3 py-2 ring-1 ring-[#adb3b4]/10">
+      <p className="text-[0.68rem] font-semibold text-[#5a6061]">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold leading-5 text-[#202829]">{value}</p>
+      {helper ? <p className="mt-1 break-words text-xs leading-5 text-[#5a6061]">{helper}</p> : null}
+    </div>
+  );
+}
+
+function formatDatasetDate(value: string) {
+  return value.includes("T") ? value.slice(0, 10) : value;
 }

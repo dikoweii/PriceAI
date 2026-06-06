@@ -553,20 +553,19 @@ function ApiOfferTable({ rows, currency }: { rows: ApiModelOfferWithRelations[];
   return (
     <section className="overflow-hidden rounded-lg bg-white shadow-[0_20px_55px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15">
       <div className="overflow-x-auto">
-        <table className="min-w-[1480px] w-full border-collapse text-left text-sm">
+        <table className="min-w-[980px] w-full table-fixed border-collapse text-left text-sm">
+          <colgroup>
+            <col className="w-[34%]" />
+            <col className="w-[28%]" />
+            <col className="w-[25%]" />
+            <col className="w-[13%]" />
+          </colgroup>
           <thead className="bg-[#f2f4f4] text-[0.68rem] font-semibold text-[#5a6061]">
             <tr>
-              <TableHead>模型</TableHead>
-              <TableHead>来源渠道</TableHead>
-              <TableHead>类型</TableHead>
-              <TableHead>输入价</TableHead>
-              <TableHead>输出价</TableHead>
-              <TableHead>缓存价</TableHead>
-              <TableHead>Token Plan/免费额度</TableHead>
-              <TableHead>限制</TableHead>
+              <TableHead>模型 / 来源渠道</TableHead>
+              <TableHead>价格</TableHead>
+              <TableHead>额度与限制</TableHead>
               <TableHead>来源</TableHead>
-              <TableHead>更新时间</TableHead>
-              <TableHead className="w-[120px] text-center">操作</TableHead>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#edf0f1]">
@@ -575,60 +574,65 @@ function ApiOfferTable({ rows, currency }: { rows: ApiModelOfferWithRelations[];
 
               return (
                 <tr key={offer.id} className="align-top transition hover:bg-[#f7f9f9]">
-                  <td className="max-w-[280px] px-5 py-4">
-                    <Link href={`/api-models/${offer.modelId}`} className="group flex min-w-0 items-center gap-3">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f2f4f4] ring-1 ring-[#adb3b4]/15">
-                        <ApiModelIcon family={offer.model.family} className="h-7 w-7" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate font-semibold text-[#202829] group-hover:text-[#2f7a4b]">{offer.model.displayName}</span>
-                        <span className="mt-1 block truncate text-xs text-[#5a6061]">{offer.routeModelId ?? offer.model.modelId}</span>
-                      </span>
-                    </Link>
-                  </td>
-                  <td className="max-w-[300px] px-5 py-4">
-                    <Link href={`/api-models/providers/${offer.providerId}`} className="group flex min-w-0 items-center gap-3">
-                      <ApiProviderIcon provider={offer.provider} />
-                      <span className="min-w-0">
-                        <span className="block truncate font-semibold text-[#202829] group-hover:text-[#2f7a4b]">{offer.provider.name}</span>
-                        <span className="mt-1 block truncate text-xs text-[#5a6061]">{formatApiBillingMode(offer.provider.billingMode)}</span>
-                      </span>
-                    </Link>
+                  <td className="px-5 py-4">
+                    <div className="grid min-w-0 gap-3">
+                      <Link href={`/api-models/${offer.modelId}`} className="group flex min-w-0 items-center gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f2f4f4] ring-1 ring-[#adb3b4]/15">
+                          <ApiModelIcon family={offer.model.family} className="h-7 w-7" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-semibold text-[#202829] group-hover:text-[#2f7a4b]">{offer.model.displayName}</span>
+                          <span className="mt-1 block truncate text-xs text-[#5a6061]">{offer.routeModelId ?? offer.model.modelId}</span>
+                        </span>
+                      </Link>
+                      <div className="flex min-w-0 flex-wrap items-center gap-2 pl-[52px]">
+                        <Link href={`/api-models/providers/${offer.providerId}`} className="group inline-flex min-w-0 items-center gap-2">
+                          <ApiProviderIcon provider={offer.provider} size="sm" />
+                          <span className="min-w-0 truncate text-sm font-semibold text-[#202829] group-hover:text-[#2f7a4b]">
+                            {offer.provider.name}
+                          </span>
+                        </Link>
+                        <TypeChip type={offer.provider.type} />
+                        <span className="inline-flex h-7 items-center whitespace-nowrap rounded-full bg-[#f2f4f4] px-2.5 text-xs font-semibold text-[#5a6061] ring-1 ring-[#adb3b4]/15">
+                          {formatApiBillingMode(offer.provider.billingMode)}
+                        </span>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-5 py-4">
-                    <TypeChip type={offer.provider.type} />
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <PriceMetric label="输入" value={formatApiPrice(offer.inputPrice, currency)} />
+                      <PriceMetric label="输出" value={formatApiPrice(offer.outputPrice, currency)} />
+                      <PriceMetric
+                        label="缓存"
+                        value={offer.cacheReadPrice ? formatApiPrice(offer.cacheReadPrice, currency) : "待确认"}
+                        helper={offer.cacheWritePrice ? `写入：${formatApiPrice(offer.cacheWritePrice, currency)}` : undefined}
+                      />
+                    </div>
                   </td>
                   <td className="px-5 py-4">
-                    <PriceText value={formatApiPrice(offer.inputPrice, currency)} />
+                    <p className="line-clamp-2 text-sm font-medium leading-6 text-[#2d3435]">{formatApiDisplayText(offer.freeOrPlan)}</p>
+                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#5a6061]">{formatApiDisplayText(offer.limitSummary)}</p>
                   </td>
                   <td className="px-5 py-4">
-                    <PriceText value={formatApiPrice(offer.outputPrice, currency)} />
-                  </td>
-                  <td className="max-w-[230px] px-5 py-4">
-                    <p className="font-semibold leading-6 text-[#202829]">{offer.cacheReadPrice ? formatApiPrice(offer.cacheReadPrice, currency) : "待确认"}</p>
-                    {offer.cacheWritePrice ? <p className="mt-1 text-xs leading-5 text-[#5a6061]">写入：{formatApiPrice(offer.cacheWritePrice, currency)}</p> : null}
-                  </td>
-                  <td className="max-w-[260px] px-5 py-4 text-sm leading-6 text-[#2d3435]">{formatApiDisplayText(offer.freeOrPlan)}</td>
-                  <td className="max-w-[280px] px-5 py-4 text-sm leading-6 text-[#5a6061]">{formatApiDisplayText(offer.limitSummary)}</td>
-                  <td className="px-5 py-4">
-                    <a
-                      href={sourceHref}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex h-9 items-center whitespace-nowrap rounded-full bg-[#e4e9ea] px-3 text-xs font-semibold text-[#2d3435] transition hover:bg-[#dde4e5]"
-                    >
-                      {offer.sourceLabel}
-                    </a>
-                  </td>
-                  <td className="px-5 py-4 text-[#5a6061]">{offer.updatedAt}</td>
-                  <td className="w-[120px] px-5 py-4 text-center">
-                    <Link
-                      href={`/api-models/${offer.modelId}`}
-                      className="inline-flex h-9 min-w-[76px] items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[#2d3435] px-3 text-xs font-semibold text-[#f8f8f8] transition hover:bg-[#1f2526]"
-                    >
-                      查看
-                      <ChevronRight size={14} />
-                    </Link>
+                    <div className="flex min-w-0 flex-col items-start gap-2">
+                      <a
+                        href={sourceHref}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex max-w-full items-center rounded-full bg-[#e4e9ea] px-3 py-2 text-xs font-semibold text-[#2d3435] transition hover:bg-[#dde4e5]"
+                      >
+                        <span className="truncate">{offer.sourceLabel}</span>
+                      </a>
+                      <span className="text-xs font-medium text-[#5a6061]">{formatDatasetDate(offer.updatedAt)}</span>
+                      <Link
+                        href={`/api-models/${offer.modelId}`}
+                        className="inline-flex h-8 items-center justify-center gap-1 rounded-full bg-[#2d3435] px-3 text-xs font-semibold text-[#f8f8f8] transition hover:bg-[#1f2526]"
+                      >
+                        查看
+                        <ChevronRight size={13} />
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               );
@@ -953,25 +957,29 @@ function TypeChip({ type }: { type: ApiProviderType }) {
   );
 }
 
-function ApiProviderIcon({ provider }: { provider: { name: string; logoUrl?: string } }) {
+function ApiProviderIcon({ provider, size = "md" }: { provider: { name: string; logoUrl?: string }; size?: "sm" | "md" }) {
+  const shellClassName = size === "sm" ? "h-7 w-7" : "h-10 w-10";
+  const imageClassName = size === "sm" ? "h-5 w-5" : "h-7 w-7";
+  const fallbackSize = size === "sm" ? 14 : 18;
+
   if (provider.logoUrl) {
     return (
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f2f4f4] ring-1 ring-[#adb3b4]/15">
+      <span className={`flex shrink-0 items-center justify-center rounded-full bg-[#f2f4f4] ring-1 ring-[#adb3b4]/15 ${shellClassName}`}>
         <Image
           src={provider.logoUrl}
           alt=""
           aria-hidden="true"
           width={28}
           height={28}
-          className="h-7 w-7 shrink-0 object-contain"
+          className={`${imageClassName} shrink-0 object-contain`}
         />
       </span>
     );
   }
 
   return (
-    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f2f4f4] text-[#5a6061] ring-1 ring-[#adb3b4]/15">
-      <Database size={18} />
+    <span className={`flex shrink-0 items-center justify-center rounded-full bg-[#f2f4f4] text-[#5a6061] ring-1 ring-[#adb3b4]/15 ${shellClassName}`}>
+      <Database size={fallbackSize} />
     </span>
   );
 }
@@ -1166,8 +1174,14 @@ function providerTypeRank(type: ApiProviderType) {
   }[type];
 }
 
-function PriceText({ value }: { value: string }) {
-  return <p className="max-w-[190px] font-semibold leading-6 text-[#202829]">{value}</p>;
+function PriceMetric({ label, value, helper }: { label: string; value: string; helper?: string }) {
+  return (
+    <div className="min-w-0 rounded-lg bg-[#f7f9f9] px-3 py-2 ring-1 ring-[#adb3b4]/10">
+      <p className="text-[0.68rem] font-semibold text-[#5a6061]">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold leading-5 text-[#202829]">{value}</p>
+      {helper ? <p className="mt-1 break-words text-xs leading-5 text-[#5a6061]">{helper}</p> : null}
+    </div>
+  );
 }
 
 function parseSubmittedUrls(value: string): string[] {
