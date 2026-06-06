@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import { Clock3, ExternalLink, Layers3 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BrandIcon } from "@/components/BrandIcon";
+import { JsonLd } from "@/components/JsonLd";
 import { ProductDetailHeader, ProductReturnLink } from "@/components/ProductDetailHeader";
 import { ProductOffersPanel } from "@/components/ProductOffersPanel";
 import { canonicalCatalog } from "@/lib/catalog";
@@ -23,6 +25,38 @@ export const dynamicParams = true;
 
 export function generateStaticParams() {
   return canonicalCatalog.map((product) => ({ id: product.slug }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const product = await getPublicProductSummary(id);
+
+  if (!product) {
+    return {
+      title: "商品详情",
+    };
+  }
+
+  const priceText = product.lowestPrice !== null
+    ? `${formatCurrency(product.lowestPrice, product.lowestOffer?.currency)} 起`
+    : "暂无有货报价";
+
+  return {
+    title: `${product.displayName} 价格对比`,
+    description: `查看 ${product.displayName} 的有货最低价、渠道报价、官方参考价和最近更新时间。当前参考：${priceText}。`,
+    alternates: {
+      canonical: `/products/${product.slug}`,
+    },
+    openGraph: {
+      title: `${product.displayName} 价格对比`,
+      description: `对比 ${product.displayName} 的渠道报价、库存状态和更新时间。`,
+      url: `https://priceai.cc/products/${product.slug}`,
+    },
+  };
 }
 
 const productTypeLabels: Record<string, string> = {
@@ -55,6 +89,8 @@ export default async function ProductDetail({
   const officialReference = buildOfficialPriceReference(product, officialPricesDataset);
 
   return (
+    <>
+    <JsonLd data={buildProductJsonLd(product, officialReference)} />
     <main className="min-h-screen bg-[#f9f9f9] text-[#2d3435]">
       <ProductDetailHeader />
 
@@ -107,6 +143,7 @@ export default async function ProductDetail({
         </p>
       </div>
     </main>
+    </>
   );
 }
 
@@ -215,4 +252,83 @@ function platformIcon(platform: string, productId?: string) {
 
 function productTypeLabel(productType: string): string {
   return productTypeLabels[productType] || productType;
+}
+
+function buildProductJsonLd(
+  product: ExplorerProductSummary,
+  officialReference: OfficialPriceReference | null,
+) {
+  const productUrl = `https://priceai.cc/products/${product.slug}`;
+  const lowestOffer = product.lowestPrice !== null && product.lowestOffer
+    ? {
+        "@type": "AggregateOffer",
+        lowPrice: product.lowestPrice,
+        priceCurrency: product.lowestOffer.currency || "CNY",
+        offerCount: Math.max(product.inStockCount, 1),
+        availability: "https://schema.org/InStock",
+        url: productUrl,
+      }
+    : {
+        "@type": "AggregateOffer",
+        offerCount: 0,
+        availability: "https://schema.org/OutOfStock",
+        url: productUrl,
+      };
+
+  const productSchema: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.displayName,
+    description: product.summary,
+    category: `${product.platform} / ${product.productType}`,
+    brand: {
+      "@type": "Brand",
+      name: product.platform,
+    },
+    url: productUrl,
+    offers: lowestOffer,
+  };
+
+  if (officialReference?.summary.lowestRow) {
+    productSchema.additionalProperty = [
+      {
+        "@type": "PropertyValue",
+        name: "官方最低地区价参考",
+        value: formatCurrency(officialReference.summary.lowestRow.cnyPrice, "CNY"),
+      },
+      {
+        "@type": "PropertyValue",
+        name: "官方最低地区",
+        value: officialReference.summary.lowestRow.countryLabel,
+      },
+    ];
+  }
+
+  return [
+    productSchema,
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "PriceAI",
+          item: "https://priceai.cc",
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: product.platform,
+          item: `https://priceai.cc/?platform=${encodeURIComponent(product.platform)}`,
+        },
+        {
+          "@type": "ListItem",
+          position: 3,
+          name: product.displayName,
+          item: productUrl,
+        },
+      ],
+    },
+  ];
 }

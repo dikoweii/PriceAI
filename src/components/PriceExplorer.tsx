@@ -552,6 +552,9 @@ export function PriceExplorer({
                 <span className="hidden h-1 w-1 rounded-full bg-[#adb3b4] md:inline-block" />
                 <span className="hidden md:inline">主价格优先取有货最低价，缺货会明显标注</span>
               </div>
+              <p className="mt-3 hidden max-w-[78ch] text-sm leading-7 text-[#5a6061] md:block">
+                PriceAI 聚合 AI 订阅渠道、官方地区价和模型 API 获取入口。本站不卖货、不担保，价格仅供参考，实际交易和售后规则以原平台为准。
+              </p>
             </div>
 
             <ExplorerMetrics

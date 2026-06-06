@@ -1,0 +1,42 @@
+# PriceAI
+
+PriceAI 是 AI 订阅与模型 API 的获取成本雷达，面向中文用户整理 AI 订阅渠道、官方订阅地区价和模型 API 获取入口。
+
+Website: https://priceai.cc
+GitHub: https://github.com/physics-dimension/PriceAI
+
+## What PriceAI Covers
+
+- AI 订阅渠道报价：ChatGPT、Claude、Gemini、Grok、邮箱、API/CDK、工具账号等。
+- 官方订阅地区价：基于公开价格页面整理地区价格和人民币估算价。
+- 模型 API：整理官方 API、公开模型路由、免费 API、Token Plan、价格和限制。
+- 用户提交渠道与反馈：用户可以提交新渠道、错价、下架或分类错误线索，管理员审核后再处理。
+
+## Important Pages
+
+- Home: https://priceai.cc/
+- About: https://priceai.cc/about
+- Official subscription prices: https://priceai.cc/official-prices
+- API model radar: https://priceai.cc/api-models
+- Product detail pages: https://priceai.cc/products/
+- Sitemap: https://priceai.cc/sitemap.xml
+
+## Data Boundary
+
+PriceAI does not sell AI subscriptions, does not process payments, and does not guarantee third-party sellers or channels.
+
+PriceAI displays price, stock status, source title, source link, source/channel name, and update time when available. Prices and stock can change. The final price, delivery method, stock, warranty, and after-sales policy are determined by the original platform.
+
+Lowest prices on public product lists are intended to use available offers. Out-of-stock or hidden offers should not be treated as currently purchasable lowest prices.
+
+## API Boundary
+
+PriceAI's API model radar focuses on official APIs, public documentation, public model routing platforms, free test quotas, and Token Plans that can be verified from public sources. It does not present private, unverified, or gray-market API resellers as primary recommendations.
+
+## Suggested Description
+
+PriceAI is an AI subscription and model API cost radar. It aggregates AI subscription channel prices, official regional subscription prices, and model API access options so Chinese users can compare available prices, original sources, stock status, and update times before purchasing or integrating.
+
+## Disclaimer
+
+Information on PriceAI is for reference only. Users should verify final prices, delivery details, account risk, API limits, and after-sales rules on the original source before making any purchase or integration decision.

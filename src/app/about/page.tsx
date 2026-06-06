@@ -13,6 +13,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { AppLogo } from "@/components/AppLogo";
+import { JsonLd } from "@/components/JsonLd";
 import { platformOptions } from "@/lib/catalog";
 import { getExplorerData } from "@/lib/data";
 import type { ExplorerProductSummary } from "@/lib/types";
@@ -22,13 +23,13 @@ export const revalidate = 3600;
 export const metadata: Metadata = {
   title: "PriceAI 是什么",
   description:
-    "PriceAI 是一个 AI 订阅价格雷达，聚合 ChatGPT、Claude、Gemini、Grok 等渠道报价，帮助用户购买前查看有货最低价、原始来源和更新时间。",
+    "PriceAI 是 AI 订阅与模型 API 的获取成本雷达，聚合 AI 订阅渠道、官方地区价和模型 API 获取入口，帮助中文用户购买或接入前比较价格、来源、库存和更新时间。",
   alternates: {
     canonical: "/about",
   },
   openGraph: {
     title: "PriceAI 是什么",
-    description: "买 AI 订阅前，先看清真实价格、原始来源和更新时间。",
+    description: "购买 AI 订阅或接入模型 API 前，先看清价格、来源、库存和更新时间。",
     url: "https://priceai.cc/about",
   },
 };
@@ -75,6 +76,16 @@ const features = [
     icon: <Search size={18} />,
   },
   {
+    title: "官方地区价",
+    text: "用公开官方价格作为基准，帮助理解官网正价、地区价和第三方渠道价之间的差异。",
+    icon: <Radar size={18} />,
+  },
+  {
+    title: "模型 API",
+    text: "整理官方 API、公开模型路由、免费 API 和 Token Plan，方便开发者比较调用成本。",
+    icon: <Search size={18} />,
+  },
+  {
     title: "渠道提交",
     text: "用户发现新渠道后可以提交，系统会先解析和试采集，再决定是否纳入比价。",
     icon: <Send size={18} />,
@@ -108,6 +119,10 @@ const faqs = [
     "我可以提交新渠道吗？",
     "可以。提交后系统会先解析链接和试采集，审核通过后才会进入比价来源。",
   ],
+  [
+    "PriceAI 会整理模型 API 吗？",
+    "会。PriceAI 的模型 API 页面整理官方 API、公开模型路由、免费 API、Token Plan、价格和限制，不把无法核验的灰色中转作为主线推荐。",
+  ],
 ];
 
 export default async function AboutPage() {
@@ -118,6 +133,8 @@ export default async function AboutPage() {
     .slice(0, 4);
 
   return (
+    <>
+    <JsonLd data={buildAboutJsonLd()} />
     <main className="min-h-screen bg-[#f9f9f9] text-[#2d3435]">
       <header className="sticky top-0 z-30 border-b border-[#dfe4e5] bg-[#f9f9f9]/95 shadow-[0_10px_24px_rgba(45,52,53,0.035)] backdrop-blur-xl">
         <div className="mx-auto flex h-20 max-w-[1180px] items-center justify-between gap-4 px-5 sm:px-8">
@@ -158,13 +175,13 @@ export default async function AboutPage() {
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full bg-[#e8f3ec] px-3 py-1.5 text-xs font-semibold text-[#2f7a4b] ring-1 ring-[#45bf78]/15">
               <Radar size={14} />
-              AI 订阅价格雷达
+              AI 订阅与模型 API 获取成本雷达
             </div>
             <h1 className="mt-5 font-serif text-4xl font-semibold leading-tight tracking-normal text-[#202829] sm:text-5xl lg:text-[3.5rem]">
-              买 AI 订阅前，先看清真实价格。
+              获取 AI 能力前，先看清真实成本。
             </h1>
             <p className="mt-6 max-w-[66ch] text-base leading-8 text-[#5a6061]">
-              ChatGPT、Claude、Gemini、Grok 这些 AI 订阅，可能同时存在官网正价、地区价、代订价和第三方渠道价。PriceAI 把分散报价聚合到一起，让你购买前先看到有货最低价、原始来源和更新时间。
+              ChatGPT、Claude、Gemini、Grok 这些 AI 订阅和模型 API，可能同时存在官网正价、地区价、代订价、第三方渠道价、免费额度和 Token Plan。PriceAI 把这些获取路径整理到一起，让你购买或接入前先看到价格、来源、库存和更新时间。
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -237,7 +254,7 @@ export default async function AboutPage() {
           <SectionHeader
             eyebrow="What it does"
             title="把购买前最需要核验的信息放在前面。"
-            text="PriceAI 不追求复杂的可信度标签，只保留用户真的会用来判断的信息：价格、库存、来源、原始标题和更新时间。"
+            text="PriceAI 不追求复杂的可信度标签，只保留用户真的会用来判断的信息：价格、库存、来源、原始标题、更新时间，以及官方价和 API 限制这些可核验信息。"
           />
           <div className="mt-8 overflow-hidden rounded-lg bg-white shadow-[0_20px_55px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15">
             {features.map((feature) => (
@@ -296,7 +313,7 @@ export default async function AboutPage() {
           <div>
             <h2 className="font-serif text-2xl font-semibold tracking-normal">买之前，多看一个来源。</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[#d7dddd]">
-              价格仅供参考，实际价格、库存和售后规则以原平台为准。发现新渠道，也可以提交给 PriceAI。
+              价格仅供参考，实际价格、库存、API 限制和售后规则以原平台为准。发现新渠道，也可以提交给 PriceAI。
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-3">
@@ -320,7 +337,23 @@ export default async function AboutPage() {
         </section>
       </div>
     </main>
+    </>
   );
+}
+
+function buildAboutJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map(([question, answer]) => ({
+      "@type": "Question",
+      name: question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: answer,
+      },
+    })),
+  };
 }
 
 function ProductPreview({
