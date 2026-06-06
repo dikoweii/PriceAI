@@ -66,3 +66,30 @@ npm run collect:browser -- --url https://aisou.pro/ --password your-admin-passwo
 - 采集成功但旧商品消失时，可以将旧报价标记为缺货或过期。
 - 单次采集失败不等于缺货，应记录失败原因并重试。
 - 不采集需要绕过验证码、登录限制或 WAF 的内容。
+
+## 链动小铺类渠道策略
+
+`pay.ldxp.cn`、`pay.qxvx.cn`、`catfk.com` 等 `shopApi` 渠道属于同一类“一个主域承载多个店铺”的来源。大量新增这类店铺时，不能把每个店铺都当成完全独立站点并在同一轮里连续请求，否则容易触发 JS 挑战、验证码、WAF 或 IP 限流。
+
+当前批量采集默认启用渠道族保护：
+
+- 同一轮批量任务默认最多采集 `20` 个链动小铺店铺。
+- 同一渠道族两次请求默认间隔 `15` 秒。
+- 一旦返回验证/风控页面，当前进程会对该渠道族熔断 `30` 分钟，后续同族店铺跳过到下一轮。
+- 单个渠道手动试采不默认套用批量限速，便于后台定位单点问题。
+
+可通过环境变量或命令参数调整：
+
+```bash
+PRICEAI_LIANDONG_SHOP_BULK_LIMIT=20
+PRICEAI_LIANDONG_SHOP_BULK_DELAY_MS=15000
+PRICEAI_LIANDONG_SHOP_BREAKER_MINUTES=30
+```
+
+或：
+
+```bash
+npm run collect:prices -- --all --post --liandong-shop-limit 10 --liandong-shop-delay-ms 30000
+```
+
+遇到 `acw_tc`、`cdn_sec_tc`、HTML 脚本挑战页等风控响应时，不应把商品标记为缺货，也不应判定店铺关闭；应记录为采集失败/风控，等待低频复查或切换到合适的采集节点。

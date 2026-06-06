@@ -60,12 +60,16 @@ const PRICE_VALUE_PATTERN = String.raw`(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\
 const CURRENCY_PRICE_RE = new RegExp(String.raw`[¥￥]\s*${PRICE_VALUE_PATTERN}`);
 const DEFAULT_COOLDOWN_MINUTES = 25;
 const DEFAULT_LOCK_SECONDS = 10 * 60;
+const DEFAULT_LIANDONG_SHOP_BULK_LIMIT = 20;
+const DEFAULT_LIANDONG_SHOP_BULK_DELAY_MS = 15_000;
+const DEFAULT_LIANDONG_SHOP_BREAKER_MINUTES = 30;
 
 export async function runPriceCollection(options = {}) {
   const targets = await loadTargets();
   const selectedTargets = selectTargets(targets, options);
   const logger = options.silent ? null : console;
   const lockOwner = collectionLockOwner(options);
+  const familyState = options.collectionFamilyState || createCollectionFamilyState(options);
 
   if (!selectedTargets.length) {
     throw new Error("No matching supported sources. Use --list to inspect available collectors.");
@@ -92,6 +96,23 @@ export async function runPriceCollection(options = {}) {
       continue;
     }
 
+    const familySkip = collectionFamilySkipReason(target, familyState);
+    if (familySkip) {
+      logger?.log(`\n==> ${target.sourceName} [${target.kind}]`);
+      logger?.log(`Skipped: ${familySkip.message}`);
+      summary.push({
+        sourceId: target.sourceId,
+        source: target.sourceName,
+        kind: target.kind,
+        status: "skipped",
+        offers: 0,
+        attempts: 0,
+        ms: Date.now() - startedAt,
+        message: familySkip.message,
+      });
+      continue;
+    }
+
     const lock = await acquireCollectionLock(target, lockOwner, options);
     if (!lock.acquired) {
       logger?.log(`\n==> ${target.sourceName} [${target.kind}]`);
@@ -108,6 +129,9 @@ export async function runPriceCollection(options = {}) {
       });
       continue;
     }
+
+    await waitForCollectionFamily(target, familyState, logger);
+    markCollectionFamilyStarted(target, familyState);
 
     logger?.log(`\n==> ${target.sourceName} [${target.kind}]`);
 
@@ -143,10 +167,12 @@ export async function runPriceCollection(options = {}) {
         attempts: collection.attempts.length,
         ms: Date.now() - startedAt,
       });
+      recordCollectionFamilyResult(target, familyState, { status, message });
     } catch (error) {
       const message = errorMessage(error);
       const attempts = Array.isArray(error?.attempts) ? error.attempts : [];
       logger?.error(`Failed: ${message}`);
+      recordCollectionFamilyResult(target, familyState, { status: "failed", message, logger });
 
       if (options.post) {
         await postCrawlLog(target, [], "failed", message, options, {
@@ -1187,7 +1213,7 @@ function shouldExcludeTarget(target, options = {}) {
 }
 
 function isLiandongShopTarget(target) {
-  return target.kind === "shopApi";
+  return Boolean(collectionFamilyForTarget(target));
 }
 
 function optionList(value) {
@@ -1232,6 +1258,148 @@ function cooldownMinutesFor(options = {}) {
   const value = Number(raw);
   if (!Number.isFinite(value)) return DEFAULT_COOLDOWN_MINUTES;
   return Math.max(1, Math.min(Math.trunc(value), 24 * 60));
+}
+
+export function createCollectionFamilyState(options = {}) {
+  return {
+    enabled: shouldUseCollectionFamilyProtection(options),
+    records: new Map(),
+    limit: liandongShopBulkLimitFor(options),
+    delayMs: liandongShopBulkDelayMsFor(options),
+    breakerMs: liandongShopBreakerMsFor(options),
+  };
+}
+
+function shouldUseCollectionFamilyProtection(options = {}) {
+  if (truthyFlag(options["no-family-protection"]) || truthyFlag(options.noFamilyProtection)) return false;
+  if (truthyFlag(options["family-protection"]) || truthyFlag(options.familyProtection)) return true;
+  if (options.source || options.id || options.name) return false;
+  return truthyFlag(options.all) || !options.source;
+}
+
+function collectionFamilySkipReason(target, state) {
+  const family = state.enabled ? collectionFamilyForTarget(target) : null;
+  if (!family) return null;
+
+  const record = collectionFamilyRecord(state, family);
+  const now = Date.now();
+  if (record.breakerUntil && record.breakerUntil > now) {
+    return {
+      message: `${family.label} 已触发风控熔断；约 ${Math.ceil((record.breakerUntil - now) / 60_000)} 分钟后再试。`,
+    };
+  }
+
+  if (state.limit > 0 && record.startedCount >= state.limit) {
+    return {
+      message: `${family.label} 本轮已达到 ${state.limit} 个店铺上限，剩余店铺留到下一轮低频采集。`,
+    };
+  }
+
+  return null;
+}
+
+async function waitForCollectionFamily(target, state, logger) {
+  const family = state.enabled ? collectionFamilyForTarget(target) : null;
+  if (!family || state.delayMs <= 0) return;
+
+  const record = collectionFamilyRecord(state, family);
+  const elapsedMs = record.lastStartedAt ? Date.now() - record.lastStartedAt : state.delayMs;
+  const waitMs = state.delayMs - elapsedMs;
+  if (waitMs <= 0) return;
+
+  logger?.log(`Waiting ${Math.ceil(waitMs / 1000)}s before next ${family.label} request...`);
+  await delay(waitMs);
+}
+
+function markCollectionFamilyStarted(target, state) {
+  const family = state.enabled ? collectionFamilyForTarget(target) : null;
+  if (!family) return;
+
+  const record = collectionFamilyRecord(state, family);
+  record.startedCount++;
+  record.lastStartedAt = Date.now();
+}
+
+function recordCollectionFamilyResult(target, state, result = {}) {
+  const family = state.enabled ? collectionFamilyForTarget(target) : null;
+  if (!family) return;
+
+  const record = collectionFamilyRecord(state, family);
+  record.lastStatus = result.status || null;
+  record.lastMessage = result.message || null;
+  if (!isChallengeMessage(result.message)) return;
+
+  record.breakerUntil = Date.now() + state.breakerMs;
+  result.logger?.log(
+    `${family.label} returned a verification/challenge page; pausing this family for ${Math.ceil(state.breakerMs / 60_000)} minutes.`,
+  );
+}
+
+function collectionFamilyRecord(state, family) {
+  const existing = state.records.get(family.key);
+  if (existing) return existing;
+
+  const record = {
+    startedCount: 0,
+    lastStartedAt: 0,
+    breakerUntil: 0,
+    lastStatus: null,
+    lastMessage: null,
+  };
+  state.records.set(family.key, record);
+  return record;
+}
+
+function collectionFamilyForTarget(target) {
+  if (target.kind !== "shopApi") return null;
+
+  const host = normalizeHostname(target.baseUrl || target.sourceUrl);
+  if (!["pay.ldxp.cn", "ldxp.cn", "pay.qxvx.cn", "catfk.com"].includes(host)) return null;
+
+  return {
+    key: `shopApi:${host}`,
+    label: `${host} shopApi`,
+  };
+}
+
+function liandongShopBulkLimitFor(options = {}) {
+  const raw =
+    options.liandongShopLimit ||
+    options["liandong-shop-limit"] ||
+    process.env.PRICEAI_LIANDONG_SHOP_BULK_LIMIT ||
+    env.PRICEAI_LIANDONG_SHOP_BULK_LIMIT ||
+    DEFAULT_LIANDONG_SHOP_BULK_LIMIT;
+  return integerInRange(raw, 0, 500, DEFAULT_LIANDONG_SHOP_BULK_LIMIT);
+}
+
+function liandongShopBulkDelayMsFor(options = {}) {
+  const raw =
+    options.liandongShopDelayMs ||
+    options["liandong-shop-delay-ms"] ||
+    process.env.PRICEAI_LIANDONG_SHOP_BULK_DELAY_MS ||
+    env.PRICEAI_LIANDONG_SHOP_BULK_DELAY_MS ||
+    DEFAULT_LIANDONG_SHOP_BULK_DELAY_MS;
+  return integerInRange(raw, 0, 10 * 60 * 1000, DEFAULT_LIANDONG_SHOP_BULK_DELAY_MS);
+}
+
+function liandongShopBreakerMsFor(options = {}) {
+  const raw =
+    options.liandongShopBreakerMinutes ||
+    options["liandong-shop-breaker-minutes"] ||
+    process.env.PRICEAI_LIANDONG_SHOP_BREAKER_MINUTES ||
+    env.PRICEAI_LIANDONG_SHOP_BREAKER_MINUTES ||
+    DEFAULT_LIANDONG_SHOP_BREAKER_MINUTES;
+  return integerInRange(raw, 1, 24 * 60, DEFAULT_LIANDONG_SHOP_BREAKER_MINUTES) * 60 * 1000;
+}
+
+function isChallengeMessage(message) {
+  return /验证|风控|challenge|captcha|本机浏览器采集|verification/i.test(String(message || ""));
+}
+
+function integerInRange(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(min, Math.min(Math.trunc(number), max));
 }
 
 function truthyFlag(value) {

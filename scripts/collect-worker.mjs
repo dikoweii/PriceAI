@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { collectApiModels } from "./collect-api-models.mjs";
 import { collectOfficialPrices } from "./collect-official-prices.mjs";
-import { runPriceCollection } from "./collect-prices.mjs";
+import { createCollectionFamilyState, runPriceCollection } from "./collect-prices.mjs";
 
 const env = readEnvFile(".env.local");
 const args = parseArgs(process.argv.slice(2));
@@ -27,6 +27,10 @@ const password =
   "ai-price-hub-local";
 const maxJobs = clampInteger(args.maxJobs || args["max-jobs"] || 1, 1, 20);
 const lockSeconds = clampInteger(args.lockSeconds || args["lock-seconds"] || 1800, 60, 7200);
+const channelCollectionFamilyState = createCollectionFamilyState({
+  ...args,
+  familyProtection: true,
+});
 
 if (args["local-job"]) {
   try {
@@ -139,6 +143,7 @@ async function runChannelPriceJob(sourceId) {
     "collector-node-type": args["worker-type"] || env.PRICEAI_COLLECTOR_NODE_TYPE || "vps",
     "collector-node-runtime": args["worker-runtime"] || env.PRICEAI_COLLECTOR_NODE_RUNTIME || "worker",
     "collector-node-region": args["worker-region"] || env.PRICEAI_COLLECTOR_NODE_REGION || null,
+    collectionFamilyState: channelCollectionFamilyState,
   });
 }
 
