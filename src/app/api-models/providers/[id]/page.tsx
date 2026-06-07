@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
-import { ArrowLeft, Clock3, Database, ExternalLink } from "lucide-react";
+import { Clock3, Database, ExternalLink } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ReturnToListLink } from "@/components/ReturnToListLink";
 import { SiteHeader } from "@/components/SiteHeader";
+import { API_MODELS_RETURN_INTENT_KEY } from "@/lib/list-return";
 import {
   apiProviderTypeLabels,
   formatApiDisplayText,
@@ -21,6 +23,8 @@ import { getApiModelDataset } from "@/lib/api-models-db";
 
 export const dynamicParams = true;
 export const revalidate = 300;
+
+const API_MODELS_RETURN_KEYS = ["family", "scope", "q", "type", "currency", "sort"] as const;
 
 export async function generateStaticParams() {
   const dataset = await getApiModelDataset();
@@ -82,10 +86,12 @@ export default async function ApiProviderDetailPage({
 
       <div className="mx-auto max-w-[1300px] px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
         <div className="mb-5">
-          <Link href="/api-models" className="inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-2 text-sm font-semibold text-[#5a6061] hover:bg-[#edf0f1] hover:text-[#2d3435] sm:px-3">
-            <ArrowLeft size={17} />
-            返回 API 模型
-          </Link>
+          <ReturnToListLink
+            allowedKeys={API_MODELS_RETURN_KEYS}
+            basePath="/api-models"
+            intentKey={API_MODELS_RETURN_INTENT_KEY}
+            label="返回 API 模型"
+          />
         </div>
 
         <section className="rounded-lg bg-[#f2f4f4] p-6 shadow-[0_20px_60px_rgba(45,52,53,0.04)] lg:p-8">

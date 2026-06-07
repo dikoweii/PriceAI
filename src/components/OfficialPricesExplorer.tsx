@@ -10,10 +10,11 @@ import {
   Search,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { BrandIcon } from "@/components/BrandIcon";
 import { CategoryTabBar, CategoryTabStrip, type CategoryTabItem } from "@/components/CategoryTabBar";
 import { SiteHeader } from "@/components/SiteHeader";
+import { OFFICIAL_PRICE_RETURN_INTENT_KEY, listDetailHref, markListReturnIntent } from "@/lib/list-return";
 import {
   buildOfficialPriceOfferRows,
   buildOfficialPricePlanSummaries,
@@ -28,10 +29,13 @@ import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 type ScopeMode = "products" | "offers";
 type PlatformFilter = "all" | OfficialPriceAppSlug;
 
+const officialScopeOptions = ["products", "offers"] as const;
+
 export function OfficialPricesExplorer({ dataset }: { dataset: OfficialPricesDataset }) {
   const [platform, setPlatform] = useState<PlatformFilter>("all");
   const [scopeMode, setScopeMode] = useState<ScopeMode>("products");
   const [query, setQuery] = useState("");
+  const [urlStateReady, setUrlStateReady] = useState(false);
 
   const normalizedQuery = query.trim().toLowerCase();
   const summaries = useMemo(
@@ -67,6 +71,38 @@ export function OfficialPricesExplorer({ dataset }: { dataset: OfficialPricesDat
     ],
     [dataset.apps],
   );
+  const explorerQueryString = useMemo(
+    () => buildOfficialSearchParams({ platform, query, scopeMode }).toString(),
+    [platform, query, scopeMode],
+  );
+
+  useEffect(() => {
+    let readyFrameId: number | null = null;
+    const frameId = window.requestAnimationFrame(() => {
+      const nextState = parseOfficialInitialState(new URLSearchParams(window.location.search), dataset);
+      setPlatform(nextState.platform);
+      setScopeMode(nextState.scopeMode);
+      setQuery(nextState.query);
+      readyFrameId = window.requestAnimationFrame(() => setUrlStateReady(true));
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      if (readyFrameId !== null) window.cancelAnimationFrame(readyFrameId);
+    };
+  }, [dataset]);
+
+  useEffect(() => {
+    if (!urlStateReady) return;
+    if (window.location.pathname !== "/official-prices") return;
+
+    const nextUrl = explorerQueryString ? `/official-prices?${explorerQueryString}` : "/official-prices";
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+    if (currentUrl !== nextUrl) {
+      window.history.replaceState(null, "", nextUrl);
+    }
+  }, [explorerQueryString, urlStateReady]);
 
   return (
     <>
@@ -182,9 +218,9 @@ export function OfficialPricesExplorer({ dataset }: { dataset: OfficialPricesDat
       {scopeMode === "products" ? (
         summaries.length ? (
           <>
-            <OfficialPlanMobileList summaries={summaries} />
+            <OfficialPlanMobileList summaries={summaries} returnQuery={explorerQueryString} />
             <div className="hidden md:block">
-              <OfficialPlanTable summaries={summaries} />
+              <OfficialPlanTable summaries={summaries} returnQuery={explorerQueryString} />
             </div>
           </>
         ) : (
@@ -192,9 +228,9 @@ export function OfficialPricesExplorer({ dataset }: { dataset: OfficialPricesDat
         )
       ) : offers.length ? (
         <>
-          <OfficialOfferMobileList rows={offers} />
+          <OfficialOfferMobileList rows={offers} returnQuery={explorerQueryString} />
           <div className="hidden md:block">
-            <OfficialOfferTable rows={offers} />
+            <OfficialOfferTable rows={offers} returnQuery={explorerQueryString} />
           </div>
         </>
       ) : (
@@ -209,16 +245,23 @@ export function OfficialPricesExplorer({ dataset }: { dataset: OfficialPricesDat
   );
 }
 
-function OfficialPlanMobileList({ summaries }: { summaries: OfficialPricePlanSummary[] }) {
+function OfficialPlanMobileList({
+  returnQuery,
+  summaries,
+}: {
+  returnQuery: string;
+  summaries: OfficialPricePlanSummary[];
+}) {
   return (
     <section className="grid grid-cols-1 gap-3 md:hidden">
       {summaries.map((summary) => {
-        const href = `/official-prices/${summary.id}`;
+        const href = officialDetailHref(summary.id, returnQuery);
 
         return (
           <Link
             key={summary.id}
             href={href}
+            onClick={trackOfficialDetailOpen}
             className="rounded-lg bg-white p-4 shadow-[0_16px_45px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15 transition active:scale-[0.995]"
           >
             <div className="flex min-w-0 items-start gap-3">
@@ -251,7 +294,13 @@ function OfficialPlanMobileList({ summaries }: { summaries: OfficialPricePlanSum
   );
 }
 
-function OfficialPlanTable({ summaries }: { summaries: OfficialPricePlanSummary[] }) {
+function OfficialPlanTable({
+  returnQuery,
+  summaries,
+}: {
+  returnQuery: string;
+  summaries: OfficialPricePlanSummary[];
+}) {
   return (
     <section className="overflow-hidden rounded-lg bg-white shadow-[0_20px_55px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15">
       <div className="overflow-x-auto">
@@ -270,12 +319,12 @@ function OfficialPlanTable({ summaries }: { summaries: OfficialPricePlanSummary[
           </thead>
           <tbody className="divide-y divide-[#edf0f1]">
             {summaries.map((summary) => {
-              const href = `/official-prices/${summary.id}`;
+              const href = officialDetailHref(summary.id, returnQuery);
 
               return (
                 <tr key={summary.id} className="transition hover:bg-[#f7f9f9]">
                   <td className="max-w-[320px] px-5 py-4">
-                    <Link href={href} className="group flex min-w-0 items-center gap-3">
+                    <Link href={href} onClick={trackOfficialDetailOpen} className="group flex min-w-0 items-center gap-3">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f2f4f4]">
                         <BrandIcon platform={summary.platform} className="h-[18px] w-[18px]" />
                       </span>
@@ -303,6 +352,7 @@ function OfficialPlanTable({ summaries }: { summaries: OfficialPricePlanSummary[
                   <td className="w-[120px] px-5 py-4 text-center">
                     <Link
                       href={href}
+                      onClick={trackOfficialDetailOpen}
                       className="inline-flex h-9 min-w-[76px] items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[#2d3435] px-3 text-xs font-semibold text-[#f8f8f8] transition hover:bg-[#1f2526]"
                     >
                       查看
@@ -319,7 +369,13 @@ function OfficialPlanTable({ summaries }: { summaries: OfficialPricePlanSummary[
   );
 }
 
-function OfficialOfferMobileList({ rows }: { rows: OfficialPriceOfferRow[] }) {
+function OfficialOfferMobileList({
+  returnQuery,
+  rows,
+}: {
+  returnQuery: string;
+  rows: OfficialPriceOfferRow[];
+}) {
   return (
     <section className="grid grid-cols-1 gap-3 md:hidden">
       {rows.map((row) => (
@@ -334,7 +390,11 @@ function OfficialOfferMobileList({ rows }: { rows: OfficialPriceOfferRow[] }) {
             <div className="min-w-0 flex-1">
               <div className="flex min-w-0 items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <Link href={`/official-prices/${row.appSlug}__${row.planSlug}`} className="block truncate text-base font-bold leading-6 text-[#202829]">
+                  <Link
+                    href={officialDetailHref(`${row.appSlug}__${row.planSlug}`, returnQuery)}
+                    onClick={trackOfficialDetailOpen}
+                    className="block truncate text-base font-bold leading-6 text-[#202829]"
+                  >
                     {row.plan.label}
                   </Link>
                   <p className="mt-0.5 truncate text-sm text-[#5a6061]">{row.app.displayName} · {billingPeriodLabel(row.plan.billingPeriod)}</p>
@@ -364,7 +424,13 @@ function OfficialOfferMobileList({ rows }: { rows: OfficialPriceOfferRow[] }) {
   );
 }
 
-function OfficialOfferTable({ rows }: { rows: OfficialPriceOfferRow[] }) {
+function OfficialOfferTable({
+  returnQuery,
+  rows,
+}: {
+  returnQuery: string;
+  rows: OfficialPriceOfferRow[];
+}) {
   return (
     <section className="overflow-hidden rounded-lg bg-white shadow-[0_20px_55px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15">
       <div className="overflow-x-auto">
@@ -391,7 +457,11 @@ function OfficialOfferTable({ rows }: { rows: OfficialPriceOfferRow[] }) {
                   </span>
                 </td>
                 <td className="max-w-[260px] px-5 py-4">
-                  <Link href={`/official-prices/${row.appSlug}__${row.planSlug}`} className="block truncate font-semibold text-[#202829] hover:text-[#2f7a4b]">
+                  <Link
+                    href={officialDetailHref(`${row.appSlug}__${row.planSlug}`, returnQuery)}
+                    onClick={trackOfficialDetailOpen}
+                    className="block truncate font-semibold text-[#202829] hover:text-[#2f7a4b]"
+                  >
                     {row.plan.label}
                   </Link>
                   <span className="mt-1 block text-xs text-[#5a6061]">{billingPeriodLabel(row.plan.billingPeriod)}</span>
@@ -486,6 +556,51 @@ function billingPeriodLabel(period: OfficialPricePlanSummary["billingPeriod"]) {
 function buildTitle(dataset: Pick<OfficialPricesDataset, "apps">, platform: OfficialPriceScope, scopeMode: ScopeMode) {
   const label = platform === "all" ? "全平台" : dataset.apps.find((app) => app.slug === platform)?.displayName ?? platform;
   return `${label} ${scopeMode === "products" ? "官方标准商品" : "官方地区报价"}`;
+}
+
+function officialDetailHref(id: string, returnQuery: string): string {
+  return listDetailHref(`/official-prices/${id}`, returnQuery);
+}
+
+function trackOfficialDetailOpen() {
+  markListReturnIntent(OFFICIAL_PRICE_RETURN_INTENT_KEY);
+}
+
+function buildOfficialSearchParams({
+  platform,
+  query,
+  scopeMode,
+}: {
+  platform: PlatformFilter;
+  query: string;
+  scopeMode: ScopeMode;
+}): URLSearchParams {
+  const params = new URLSearchParams();
+  const normalizedQuery = query.trim();
+
+  if (platform !== "all") params.set("platform", platform);
+  if (scopeMode !== "products") params.set("scope", scopeMode);
+  if (normalizedQuery) params.set("q", normalizedQuery);
+
+  return params;
+}
+
+function parseOfficialInitialState(params: URLSearchParams, dataset: OfficialPricesDataset) {
+  return {
+    platform: pickOfficialPlatform(params.get("platform") || "", dataset),
+    scopeMode: pickParam(params.get("scope") || "", officialScopeOptions, "products"),
+    query: params.get("q") || "",
+  };
+}
+
+function pickOfficialPlatform(value: string, dataset: OfficialPricesDataset): PlatformFilter {
+  if (!value) return "all";
+  if (value === "all") return "all";
+  return dataset.apps.some((app) => app.slug === value) ? (value as OfficialPriceAppSlug) : "all";
+}
+
+function pickParam<T extends string>(value: string, options: readonly T[], fallback: T): T {
+  return options.includes(value as T) ? (value as T) : fallback;
 }
 
 function matchesSummary(summary: OfficialPricePlanSummary, query: string) {

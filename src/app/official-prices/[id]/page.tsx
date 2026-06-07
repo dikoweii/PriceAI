@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { ArrowLeft, Clock3, ExternalLink } from "lucide-react";
-import Link from "next/link";
+import { Clock3, ExternalLink } from "lucide-react";
 import { notFound } from "next/navigation";
 import { BrandIcon } from "@/components/BrandIcon";
+import { ReturnToListLink } from "@/components/ReturnToListLink";
 import { SiteHeader } from "@/components/SiteHeader";
+import { OFFICIAL_PRICE_RETURN_INTENT_KEY } from "@/lib/list-return";
 import {
   buildOfficialPricePlanSummaries,
   getOfficialPricePlanSummaryFromDataset,
@@ -13,6 +14,8 @@ import { getOfficialPricesDataset } from "@/lib/official-prices-db";
 import { formatCurrency, formatRelativeTime } from "@/lib/utils";
 
 export const dynamicParams = true;
+
+const OFFICIAL_RETURN_KEYS = ["platform", "scope", "q"] as const;
 
 export async function generateStaticParams() {
   const dataset = await getOfficialPricesDataset();
@@ -72,10 +75,12 @@ export default async function OfficialPriceDetailPage({
 
       <div className="mx-auto max-w-[1300px] px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
         <div className="mb-5">
-          <Link href="/official-prices" className="inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-2 text-sm font-semibold text-[#5a6061] hover:bg-[#edf0f1] hover:text-[#2d3435] sm:px-3">
-            <ArrowLeft size={17} />
-            返回官方地区价
-          </Link>
+          <ReturnToListLink
+            allowedKeys={OFFICIAL_RETURN_KEYS}
+            basePath="/official-prices"
+            intentKey={OFFICIAL_PRICE_RETURN_INTENT_KEY}
+            label="返回官方地区价"
+          />
         </div>
 
         <section className="rounded-lg bg-[#f2f4f4] p-6 shadow-[0_20px_60px_rgba(45,52,53,0.04)] lg:p-8">

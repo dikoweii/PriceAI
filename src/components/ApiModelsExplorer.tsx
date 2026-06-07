@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { ApiModelIcon } from "@/components/ApiModelIcon";
 import { CategoryTabBar, CategoryTabStrip, type CategoryTabItem } from "@/components/CategoryTabBar";
 import { SiteHeader } from "@/components/SiteHeader";
+import { API_MODELS_RETURN_INTENT_KEY, listDetailHref, markListReturnIntent } from "@/lib/list-return";
 import {
   apiProviderTypeLabels,
   formatApiBillingMode,
@@ -39,6 +40,9 @@ import {
 } from "@/lib/api-models";
 
 const typeFilters = ["all", "official", "subscription", "free"] as const;
+const apiScopeOptions = ["models", "offers", "providers"] as const;
+const apiCurrencyOptions = ["CNY", "USD"] as const;
+const apiSortOptions = ["recommended", "price", "updated", "channels"] as const;
 type TypeFilter = (typeof typeFilters)[number];
 type ScopeMode = "models" | "offers" | "providers";
 type FamilyFilter = "all" | string;
@@ -58,6 +62,7 @@ export function ApiModelsExplorer({ dataset }: { dataset: ApiModelDataset }) {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [currency, setCurrency] = useState<ApiCurrency>("CNY");
   const [mobileSort, setMobileSort] = useState<MobileSortMode>("recommended");
+  const [urlStateReady, setUrlStateReady] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [submitUrls, setSubmitUrls] = useState("");
@@ -118,6 +123,41 @@ export function ApiModelsExplorer({ dataset }: { dataset: ApiModelDataset }) {
       : scopeMode === "offers"
         ? offerRows.length
         : providerSummaries.length;
+  const explorerQueryString = useMemo(
+    () => buildApiModelsSearchParams({ currency, family, mobileSort, query, scopeMode, typeFilter }).toString(),
+    [currency, family, mobileSort, query, scopeMode, typeFilter],
+  );
+
+  useEffect(() => {
+    let readyFrameId: number | null = null;
+    const frameId = window.requestAnimationFrame(() => {
+      const nextState = parseApiModelsInitialState(new URLSearchParams(window.location.search), familyOptions);
+      setFamily(nextState.family);
+      setScopeMode(nextState.scopeMode);
+      setQuery(nextState.query);
+      setTypeFilter(nextState.typeFilter);
+      setCurrency(nextState.currency);
+      setMobileSort(nextState.mobileSort);
+      readyFrameId = window.requestAnimationFrame(() => setUrlStateReady(true));
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      if (readyFrameId !== null) window.cancelAnimationFrame(readyFrameId);
+    };
+  }, [familyOptions]);
+
+  useEffect(() => {
+    if (!urlStateReady) return;
+    if (window.location.pathname !== "/api-models") return;
+
+    const nextUrl = explorerQueryString ? `/api-models?${explorerQueryString}` : "/api-models";
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+
+    if (currentUrl !== nextUrl) {
+      window.history.replaceState(null, "", nextUrl);
+    }
+  }, [explorerQueryString, urlStateReady]);
 
   useEffect(() => {
     if (!submitOpen) return;
@@ -524,9 +564,9 @@ export function ApiModelsExplorer({ dataset }: { dataset: ApiModelDataset }) {
       {scopeMode === "models" ? (
         modelSummaries.length ? (
           <>
-            <ApiModelSummaryMobileList summaries={modelSummaries} currency={currency} />
+            <ApiModelSummaryMobileList summaries={modelSummaries} currency={currency} returnQuery={explorerQueryString} />
             <div className="hidden md:block">
-              <ApiModelSummaryTable summaries={modelSummaries} currency={currency} />
+              <ApiModelSummaryTable summaries={modelSummaries} currency={currency} returnQuery={explorerQueryString} />
             </div>
           </>
         ) : (
@@ -535,9 +575,9 @@ export function ApiModelsExplorer({ dataset }: { dataset: ApiModelDataset }) {
       ) : scopeMode === "offers" ? (
         offerRows.length ? (
           <>
-            <ApiOfferMobileList rows={offerRows} currency={currency} />
+            <ApiOfferMobileList rows={offerRows} currency={currency} returnQuery={explorerQueryString} />
             <div className="hidden md:block">
-              <ApiOfferTable rows={offerRows} currency={currency} />
+              <ApiOfferTable rows={offerRows} currency={currency} returnQuery={explorerQueryString} />
             </div>
           </>
         ) : (
@@ -545,9 +585,9 @@ export function ApiModelsExplorer({ dataset }: { dataset: ApiModelDataset }) {
         )
       ) : providerSummaries.length ? (
         <>
-          <ApiProviderSummaryMobileList summaries={providerSummaries} currency={currency} />
+          <ApiProviderSummaryMobileList summaries={providerSummaries} currency={currency} returnQuery={explorerQueryString} />
           <div className="hidden md:block">
-            <ApiProviderSummaryTable summaries={providerSummaries} currency={currency} />
+            <ApiProviderSummaryTable summaries={providerSummaries} currency={currency} returnQuery={explorerQueryString} />
           </div>
         </>
       ) : (
@@ -569,7 +609,15 @@ export function ApiModelsExplorer({ dataset }: { dataset: ApiModelDataset }) {
   );
 }
 
-function ApiOfferTable({ rows, currency }: { rows: ApiModelOfferWithRelations[]; currency: ApiCurrency }) {
+function ApiOfferTable({
+  currency,
+  returnQuery,
+  rows,
+}: {
+  currency: ApiCurrency;
+  returnQuery: string;
+  rows: ApiModelOfferWithRelations[];
+}) {
   return (
     <section className="overflow-hidden rounded-lg bg-white shadow-[0_20px_55px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15">
       <div className="overflow-x-auto">
@@ -596,7 +644,7 @@ function ApiOfferTable({ rows, currency }: { rows: ApiModelOfferWithRelations[];
                 <tr key={offer.id} className="align-top transition hover:bg-[#f7f9f9]">
                   <td className="px-5 py-4">
                     <div className="grid min-w-0 gap-3">
-                      <Link href={`/api-models/${offer.modelId}`} className="group flex min-w-0 items-center gap-3">
+                      <Link href={apiModelDetailHref(offer.modelId, returnQuery)} onClick={trackApiModelDetailOpen} className="group flex min-w-0 items-center gap-3">
                         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f2f4f4] ring-1 ring-[#adb3b4]/15">
                           <ApiModelIcon family={offer.model.family} className="h-7 w-7" />
                         </span>
@@ -606,7 +654,7 @@ function ApiOfferTable({ rows, currency }: { rows: ApiModelOfferWithRelations[];
                         </span>
                       </Link>
                       <div className="flex min-w-0 flex-wrap items-center gap-2 pl-[52px]">
-                        <Link href={`/api-models/providers/${offer.providerId}`} className="group inline-flex min-w-0 items-center gap-2">
+                        <Link href={apiProviderDetailHref(offer.providerId, returnQuery)} onClick={trackApiModelDetailOpen} className="group inline-flex min-w-0 items-center gap-2">
                           <ApiProviderIcon provider={offer.provider} size="sm" />
                           <span className="min-w-0 truncate text-sm font-semibold text-[#202829] group-hover:text-[#2f7a4b]">
                             {offer.provider.name}
@@ -646,7 +694,8 @@ function ApiOfferTable({ rows, currency }: { rows: ApiModelOfferWithRelations[];
                       </a>
                       <span className="text-xs font-medium text-[#5a6061]">{formatDatasetDate(offer.updatedAt)}</span>
                       <Link
-                        href={`/api-models/${offer.modelId}`}
+                        href={apiModelDetailHref(offer.modelId, returnQuery)}
+                        onClick={trackApiModelDetailOpen}
                         className="inline-flex h-8 items-center justify-center gap-1 rounded-full bg-[#2d3435] px-3 text-xs font-semibold text-[#f8f8f8] transition hover:bg-[#1f2526]"
                       >
                         查看
@@ -664,7 +713,15 @@ function ApiOfferTable({ rows, currency }: { rows: ApiModelOfferWithRelations[];
   );
 }
 
-function ApiOfferMobileList({ rows, currency }: { rows: ApiModelOfferWithRelations[]; currency: ApiCurrency }) {
+function ApiOfferMobileList({
+  currency,
+  returnQuery,
+  rows,
+}: {
+  currency: ApiCurrency;
+  returnQuery: string;
+  rows: ApiModelOfferWithRelations[];
+}) {
   return (
     <section className="grid grid-cols-1 gap-3 md:hidden">
       {rows.map((offer) => {
@@ -679,7 +736,7 @@ function ApiOfferMobileList({ rows, currency }: { rows: ApiModelOfferWithRelatio
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <Link href={`/api-models/${offer.modelId}`} className="block truncate text-base font-bold leading-6 text-[#202829]">
+                    <Link href={apiModelDetailHref(offer.modelId, returnQuery)} onClick={trackApiModelDetailOpen} className="block truncate text-base font-bold leading-6 text-[#202829]">
                       {offer.model.displayName}
                     </Link>
                     <p className="mt-0.5 truncate text-sm text-[#5a6061]">{offer.routeModelId ?? offer.model.modelId}</p>
@@ -687,7 +744,7 @@ function ApiOfferMobileList({ rows, currency }: { rows: ApiModelOfferWithRelatio
                   <TypeChip type={offer.provider.type} />
                 </div>
 
-                <Link href={`/api-models/providers/${offer.providerId}`} className="mt-3 inline-flex max-w-full items-center gap-2">
+                <Link href={apiProviderDetailHref(offer.providerId, returnQuery)} onClick={trackApiModelDetailOpen} className="mt-3 inline-flex max-w-full items-center gap-2">
                   <ApiProviderIcon provider={offer.provider} size="sm" />
                   <span className="truncate text-sm font-semibold text-[#202829]">{offer.provider.name}</span>
                 </Link>
@@ -727,15 +784,23 @@ function ApiOfferMobileList({ rows, currency }: { rows: ApiModelOfferWithRelatio
   );
 }
 
-function ApiModelSummaryMobileList({ summaries, currency }: { summaries: ApiModelSummary[]; currency: ApiCurrency }) {
+function ApiModelSummaryMobileList({
+  currency,
+  returnQuery,
+  summaries,
+}: {
+  currency: ApiCurrency;
+  returnQuery: string;
+  summaries: ApiModelSummary[];
+}) {
   return (
     <section className="grid grid-cols-1 gap-3 md:hidden">
       {summaries.map((summary) => {
-        const href = `/api-models/${summary.id}`;
+        const href = apiModelDetailHref(summary.id, returnQuery);
         const primaryOffer = summary.primaryOffer;
 
         return (
-          <Link key={summary.id} href={href} className="rounded-lg bg-white p-4 shadow-[0_16px_45px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15 transition active:scale-[0.995]">
+          <Link key={summary.id} href={href} onClick={trackApiModelDetailOpen} className="rounded-lg bg-white p-4 shadow-[0_16px_45px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15 transition active:scale-[0.995]">
             <div className="flex min-w-0 items-start gap-3">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#f2f4f4] ring-1 ring-[#adb3b4]/15">
                 <ApiModelIcon family={summary.family} className="h-7 w-7" />
@@ -774,7 +839,15 @@ function ApiModelSummaryMobileList({ summaries, currency }: { summaries: ApiMode
   );
 }
 
-function ApiModelSummaryTable({ summaries, currency }: { summaries: ApiModelSummary[]; currency: ApiCurrency }) {
+function ApiModelSummaryTable({
+  currency,
+  returnQuery,
+  summaries,
+}: {
+  currency: ApiCurrency;
+  returnQuery: string;
+  summaries: ApiModelSummary[];
+}) {
   return (
     <section className="overflow-hidden rounded-lg bg-white shadow-[0_20px_55px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15">
       <div className="overflow-x-auto">
@@ -792,13 +865,13 @@ function ApiModelSummaryTable({ summaries, currency }: { summaries: ApiModelSumm
           </thead>
           <tbody className="divide-y divide-[#edf0f1]">
             {summaries.map((summary) => {
-              const href = `/api-models/${summary.id}`;
+              const href = apiModelDetailHref(summary.id, returnQuery);
               const primaryOffer = summary.primaryOffer;
 
               return (
                 <tr key={summary.id} className="transition hover:bg-[#f7f9f9]">
                   <td className="max-w-[330px] px-5 py-4">
-                    <Link href={href} className="group flex min-w-0 items-center gap-3">
+                    <Link href={href} onClick={trackApiModelDetailOpen} className="group flex min-w-0 items-center gap-3">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f2f4f4] ring-1 ring-[#adb3b4]/15">
                         <ApiModelIcon family={summary.family} className="h-7 w-7" />
                       </span>
@@ -836,6 +909,7 @@ function ApiModelSummaryTable({ summaries, currency }: { summaries: ApiModelSumm
                   <td className="w-[120px] px-5 py-4 text-center">
                     <Link
                       href={href}
+                      onClick={trackApiModelDetailOpen}
                       className="inline-flex h-9 min-w-[76px] items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[#2d3435] px-3 text-xs font-semibold text-[#f8f8f8] transition hover:bg-[#1f2526]"
                     >
                       查看
@@ -852,7 +926,15 @@ function ApiModelSummaryTable({ summaries, currency }: { summaries: ApiModelSumm
   );
 }
 
-function ApiProviderSummaryTable({ summaries, currency }: { summaries: ApiProviderSummary[]; currency: ApiCurrency }) {
+function ApiProviderSummaryTable({
+  currency,
+  returnQuery,
+  summaries,
+}: {
+  currency: ApiCurrency;
+  returnQuery: string;
+  summaries: ApiProviderSummary[];
+}) {
   return (
     <section className="overflow-hidden rounded-lg bg-white shadow-[0_20px_55px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15">
       <div className="overflow-x-auto">
@@ -870,13 +952,13 @@ function ApiProviderSummaryTable({ summaries, currency }: { summaries: ApiProvid
           </thead>
           <tbody className="divide-y divide-[#edf0f1]">
             {summaries.map((summary) => {
-              const href = `/api-models/providers/${summary.id}`;
+              const href = apiProviderDetailHref(summary.id, returnQuery);
               const provider = summary.provider;
 
               return (
                 <tr key={summary.id} className="align-top transition hover:bg-[#f7f9f9]">
                   <td className="max-w-[330px] px-5 py-4">
-                    <Link href={href} className="group flex min-w-0 items-center gap-3">
+                    <Link href={href} onClick={trackApiModelDetailOpen} className="group flex min-w-0 items-center gap-3">
                       <ApiProviderIcon provider={provider} />
                       <span className="min-w-0">
                         <span className="block truncate font-semibold text-[#202829] group-hover:text-[#2f7a4b]">{provider.name}</span>
@@ -906,6 +988,7 @@ function ApiProviderSummaryTable({ summaries, currency }: { summaries: ApiProvid
                   <td className="w-[120px] px-5 py-4 text-center">
                     <Link
                       href={href}
+                      onClick={trackApiModelDetailOpen}
                       className="inline-flex h-9 min-w-[76px] items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[#2d3435] px-3 text-xs font-semibold text-[#f8f8f8] transition hover:bg-[#1f2526]"
                     >
                       查看
@@ -922,15 +1005,23 @@ function ApiProviderSummaryTable({ summaries, currency }: { summaries: ApiProvid
   );
 }
 
-function ApiProviderSummaryMobileList({ summaries, currency }: { summaries: ApiProviderSummary[]; currency: ApiCurrency }) {
+function ApiProviderSummaryMobileList({
+  currency,
+  returnQuery,
+  summaries,
+}: {
+  currency: ApiCurrency;
+  returnQuery: string;
+  summaries: ApiProviderSummary[];
+}) {
   return (
     <section className="grid grid-cols-1 gap-3 md:hidden">
       {summaries.map((summary) => {
-        const href = `/api-models/providers/${summary.id}`;
+        const href = apiProviderDetailHref(summary.id, returnQuery);
         const provider = summary.provider;
 
         return (
-          <Link key={summary.id} href={href} className="rounded-lg bg-white p-4 shadow-[0_16px_45px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15 transition active:scale-[0.995]">
+          <Link key={summary.id} href={href} onClick={trackApiModelDetailOpen} className="rounded-lg bg-white p-4 shadow-[0_16px_45px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15 transition active:scale-[0.995]">
             <div className="flex min-w-0 items-start gap-3">
               <ApiProviderIcon provider={provider} />
               <div className="min-w-0 flex-1">
@@ -1188,6 +1279,66 @@ function buildTitle(family: ApiModelScope, scopeMode: ScopeMode, familyOptions: 
     providers: "来源渠道",
   }[scopeMode];
   return `${label} ${suffix}`;
+}
+
+function apiModelDetailHref(id: string, returnQuery: string): string {
+  return listDetailHref(`/api-models/${id}`, returnQuery);
+}
+
+function apiProviderDetailHref(id: string, returnQuery: string): string {
+  return listDetailHref(`/api-models/providers/${id}`, returnQuery);
+}
+
+function trackApiModelDetailOpen() {
+  markListReturnIntent(API_MODELS_RETURN_INTENT_KEY);
+}
+
+function buildApiModelsSearchParams({
+  currency,
+  family,
+  mobileSort,
+  query,
+  scopeMode,
+  typeFilter,
+}: {
+  currency: ApiCurrency;
+  family: FamilyFilter;
+  mobileSort: MobileSortMode;
+  query: string;
+  scopeMode: ScopeMode;
+  typeFilter: TypeFilter;
+}): URLSearchParams {
+  const params = new URLSearchParams();
+  const normalizedQuery = query.trim();
+
+  if (family !== "all") params.set("family", family);
+  if (scopeMode !== "models") params.set("scope", scopeMode);
+  if (normalizedQuery) params.set("q", normalizedQuery);
+  if (typeFilter !== "all") params.set("type", typeFilter);
+  if (currency !== "CNY") params.set("currency", currency);
+  if (mobileSort !== "recommended") params.set("sort", mobileSort);
+
+  return params;
+}
+
+function parseApiModelsInitialState(params: URLSearchParams, familyOptions: { id: string; label: string }[]) {
+  return {
+    family: pickApiFamily(params.get("family") || "", familyOptions),
+    scopeMode: pickParam(params.get("scope") || "", apiScopeOptions, "models"),
+    query: params.get("q") || "",
+    typeFilter: pickParam(params.get("type") || "", typeFilters, "all"),
+    currency: pickParam(params.get("currency") || "", apiCurrencyOptions, "CNY"),
+    mobileSort: pickParam(params.get("sort") || "", apiSortOptions, "recommended"),
+  };
+}
+
+function pickApiFamily(value: string, familyOptions: { id: string; label: string }[]): FamilyFilter {
+  if (!value || value === "all") return "all";
+  return familyOptions.some((option) => option.id === value) ? value : "all";
+}
+
+function pickParam<T extends string>(value: string, options: readonly T[], fallback: T): T {
+  return options.includes(value as T) ? (value as T) : fallback;
 }
 
 function formatDatasetDate(value: string) {
