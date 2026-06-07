@@ -268,19 +268,30 @@ export default async function AboutPage() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#5a6061]">Start here</p>
               <h2 className="mt-3 font-serif text-3xl font-semibold leading-tight tracking-normal text-[#202829]">
-                第一次买，可以先看 ChatGPT 打样页。
+                第一次买，先把价格和风险边界看清楚。
               </h2>
               <p className="mt-4 text-sm leading-7 text-[#5a6061]">
-                我们会先用 ChatGPT 建立平台页和新手指南模板：解释商品类型、展示当前价格摘要，再把用户带回比价工具。
+                先理解价格为什么会分层，再看卡网渠道该怎么判断，最后回到具体平台页查看当前有货报价。
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <Link
                 href="/guides/why-ai-subscription-prices-differ"
                 className="rounded-lg bg-[#f2f4f4] p-5 transition hover:-translate-y-0.5 hover:bg-[#ebeeef]"
               >
                 <span className="text-sm font-semibold text-[#202829]">AI 订阅价格分层指南</span>
                 <span className="mt-2 block text-sm leading-6 text-[#5a6061]">先理解官网正价、地区价、代充价和第三方渠道价。</span>
+                <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#2d3435]">
+                  阅读指南
+                  <ArrowRight size={15} />
+                </span>
+              </Link>
+              <Link
+                href="/guides/are-ai-subscription-card-shops-reliable"
+                className="rounded-lg bg-[#f2f4f4] p-5 transition hover:-translate-y-0.5 hover:bg-[#ebeeef]"
+              >
+                <span className="text-sm font-semibold text-[#202829]">卡网渠道可信度指南</span>
+                <span className="mt-2 block text-sm leading-6 text-[#5a6061]">理解卡网、卖家、售后入口和购买前检查清单。</span>
                 <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#2d3435]">
                   阅读指南
                   <ArrowRight size={15} />

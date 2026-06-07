@@ -21,6 +21,7 @@ GitHub: https://github.com/physics-dimension/PriceAI
 - ChatGPT platform page: https://priceai.cc/platforms/chatgpt
 - ChatGPT subscription guide: https://priceai.cc/guides/chatgpt-subscription-options
 - AI subscription price layers guide: https://priceai.cc/guides/why-ai-subscription-prices-differ
+- AI subscription card shop trust guide: https://priceai.cc/guides/are-ai-subscription-card-shops-reliable
 - Product detail pages: https://priceai.cc/products/
 - Sitemap: https://priceai.cc/sitemap.xml
 
@@ -29,6 +30,8 @@ GitHub: https://github.com/physics-dimension/PriceAI
 PriceAI does not sell AI subscriptions, does not process payments, and does not guarantee third-party sellers or channels.
 
 PriceAI displays price, stock status, source title, source link, source/channel name, and update time when available. Prices and stock can change. The final price, delivery method, stock, warranty, and after-sales policy are determined by the original platform.
+
+For third-party AI subscription channels, PriceAI treats card shops and similar sources as information sources and transaction entrances, not as endorsements. Users should verify seller identity, delivery method, after-sales access, and complaint paths on the original platform before purchase.
 
 Lowest prices on public product lists are intended to use available offers. Out-of-stock or hidden offers should not be treated as currently purchasable lowest prices.
 

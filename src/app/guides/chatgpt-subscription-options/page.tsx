@@ -147,9 +147,16 @@ export default function ChatGptSubscriptionOptionsGuide() {
           <section className="mt-12 flex flex-col gap-4 rounded-lg bg-[#f2f4f4] p-6 ring-1 ring-[#adb3b4]/15 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="font-serif text-2xl font-semibold tracking-normal text-[#202829]">看完路径，再看实时价格。</h2>
-              <p className="mt-2 text-sm leading-6 text-[#5a6061]">如果还不理解为什么价格差异这么大，可以先看价格分层指南。</p>
+              <p className="mt-2 text-sm leading-6 text-[#5a6061]">如果准备从第三方渠道购买，可以先看价格分层和卡网渠道判断清单。</p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-3">
+              <Link
+                href="/guides/are-ai-subscription-card-shops-reliable"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-white px-5 text-sm font-semibold text-[#2d3435] ring-1 ring-[#adb3b4]/20 transition hover:bg-[#f5f7f7]"
+              >
+                卡网渠道靠谱吗
+                <ArrowRight size={16} />
+              </Link>
               <Link
                 href="/guides/why-ai-subscription-prices-differ"
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#dde4e5] px-5 text-sm font-semibold text-[#2d3435] transition hover:bg-[#d3dcdd]"

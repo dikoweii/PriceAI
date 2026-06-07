@@ -218,10 +218,17 @@ export default async function ChatGptPlatformPage() {
             <div>
               <h2 className="font-serif text-2xl font-semibold tracking-normal text-[#202829]">第一次买 ChatGPT 订阅？</h2>
               <p className="mt-2 text-sm leading-6 text-[#5a6061]">
-                可以先理解价格为什么会分层，再看 ChatGPT 的具体获取方式。
+                可以先理解价格为什么会分层，再看 ChatGPT 的具体获取方式；如果准备走第三方渠道，也先看风险边界。
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-3">
+              <Link
+                href="/guides/are-ai-subscription-card-shops-reliable"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-white px-5 text-sm font-semibold text-[#2d3435] ring-1 ring-[#adb3b4]/20 transition hover:bg-[#f5f7f7]"
+              >
+                卡网渠道靠谱吗
+                <ArrowRight size={16} />
+              </Link>
               <Link
                 href="/guides/why-ai-subscription-prices-differ"
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#dde4e5] px-5 text-sm font-semibold text-[#2d3435] transition hover:bg-[#d3dcdd]"
