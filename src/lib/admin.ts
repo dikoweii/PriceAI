@@ -788,7 +788,7 @@ export function toRawOfferRow(offer: RawOffer) {
     price: offer.price,
     currency: offer.currency,
     status: offer.status,
-    url: offer.url,
+    url: normalizeOfferUrlForStorage(offer.url),
     tags: offer.tags,
     stock_count: offer.stockCount,
     hidden: offer.hidden ?? false,
@@ -808,6 +808,19 @@ export function toRawOfferRow(offer: RawOffer) {
     failure_reason: offer.failureReason,
     updated_at: new Date().toISOString(),
   };
+}
+
+function normalizeOfferUrlForStorage(value: string): string {
+  const parsed = safeUrl(value);
+  if (!parsed) return value;
+
+  const commodityId = parsed.searchParams.get("commodity");
+  if (!commodityId || !KAMI_HOSTS.has(normalizeHostname(parsed.hostname))) return value;
+
+  parsed.pathname = `/item/${encodeURIComponent(commodityId)}`;
+  parsed.search = "";
+  parsed.hash = "";
+  return parsed.toString();
 }
 
 function deriveBaseUrl(url: string): string | null {
