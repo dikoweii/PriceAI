@@ -109,20 +109,31 @@ export default async function ProductDetail({
         </div>
 
         <section className="rounded-lg bg-[#f2f4f4] p-5 shadow-[0_20px_60px_rgba(45,52,53,0.04)] lg:p-6">
-          <div className="min-w-0 max-w-4xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge>{platformIcon(product.platform, product.id)} {product.platform}</Badge>
-              <Badge>{productTypeLabel(product.productType)}</Badge>
-              <Badge>{product.spec}</Badge>
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(340px,460px)] lg:items-end">
+            <div className="min-w-0 max-w-4xl">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge>{platformIcon(product.platform, product.id)} {product.platform}</Badge>
+                <Badge>{productTypeLabel(product.productType)}</Badge>
+                <Badge>{product.spec}</Badge>
+              </div>
+              <h1 className="mt-4 font-serif text-3xl font-bold tracking-normal text-[#202829] sm:text-4xl">
+                {product.displayName}
+              </h1>
+              <p className="mt-3 text-sm leading-7 text-[#5a6061]">{product.summary}</p>
             </div>
-            <h1 className="mt-4 font-serif text-3xl font-bold tracking-normal text-[#202829] sm:text-4xl">
-              {product.displayName}
-            </h1>
-            <p className="mt-3 text-sm leading-7 text-[#5a6061]">{product.summary}</p>
+
+            <div className="grid min-w-0 grid-cols-2 gap-3">
+              <ProductMetric
+                label="最低价"
+                value={product.lowestPrice !== null ? formatCurrency(product.lowestPrice, product.lowestOffer?.currency) : "暂无"}
+                tone={product.lowestPrice !== null ? "good" : "danger"}
+              />
+              <ProductMetric label="有货" value={`${product.inStockCount}`} />
+              <ProductMetric label="总报价" value={`${product.offerCount}`} />
+              <ProductMetric label="最近记录" value={formatRelativeTime(product.latestSeenAt)} />
+            </div>
           </div>
         </section>
-
-        <ProductAvailabilityStrip product={product} />
 
         {officialReference ? (
           <OfficialPriceReferenceStrip reference={officialReference} product={product} />
@@ -513,42 +524,21 @@ function Badge({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ProductAvailabilityStrip({ product }: { product: ExplorerProductSummary }) {
-  return (
-    <section className="mt-4 rounded-lg bg-white px-4 py-4 shadow-[0_14px_42px_rgba(45,52,53,0.035)] ring-1 ring-[#adb3b4]/15">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.15fr_0.75fr_0.75fr_0.9fr]">
-        <ProductMetric
-          label="当前有货最低"
-          value={product.lowestPrice !== null ? formatCurrency(product.lowestPrice, product.lowestOffer?.currency) : "暂无有货"}
-          tone={product.lowestPrice !== null ? "good" : "danger"}
-          detail={product.lowestOffer ? `${product.lowestOffer.sourceStoreName || product.lowestOffer.sourceName} · 缺货不参与最低价` : "缺货或下架报价不参与最低价"}
-        />
-        <ProductMetric label="有货报价" value={`${product.inStockCount}`} detail="可作为当前购买参考" />
-        <ProductMetric label="总报价" value={`${product.offerCount}`} detail={`${product.outOfStockCount} 条缺货或不可用`} />
-        <ProductMetric label="最近记录" value={formatRelativeTime(product.latestSeenAt)} detail="以来源更新时间和采集记录为准" />
-      </div>
-    </section>
-  );
-}
-
 function ProductMetric({
   label,
   value,
-  detail,
   tone = "default",
 }: {
   label: string;
   value: string;
-  detail: string;
   tone?: "default" | "good" | "danger";
 }) {
   return (
-    <div className="rounded-lg bg-[#f2f4f4] px-4 py-3">
+    <div className="min-w-0 rounded-lg bg-white px-4 py-3 shadow-[0_12px_35px_rgba(45,52,53,0.035)] ring-1 ring-[#adb3b4]/15">
       <p className="text-xs font-semibold text-[#5a6061]">{label}</p>
       <p className={`mt-1 text-xl font-bold ${tone === "good" ? "text-[#2f7a4b]" : tone === "danger" ? "text-[#9b3328]" : "text-[#202829]"}`}>
         {value}
       </p>
-      <p className="mt-1 text-xs leading-5 text-[#5a6061]">{detail}</p>
     </div>
   );
 }
