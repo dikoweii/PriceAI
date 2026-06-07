@@ -5,8 +5,8 @@
 <h1 align="center">PriceAI</h1>
 
 <p align="center">
-  <strong>AI 订阅渠道比价工具，把分散卡网报价整理成可比较的标准商品。</strong><br/>
-  聚合 ChatGPT、Claude、Gemini、Grok、邮箱、API/CDK 等多渠道报价，看有货最低价，对比来源，跳转原站购买。
+  <strong>AI 订阅卡网渠道比价工具，把分散卡网报价整理成可比较的标准商品。</strong><br/>
+  聚合 100+ 卡网渠道里的 ChatGPT、Claude、Gemini、Grok、邮箱、API/CDK 等多渠道报价，看有货最低价，对比来源，跳转原站购买。
 </p>
 
 <p align="center">
@@ -18,10 +18,13 @@
 <p align="center">
   <a href="https://priceai.cc">在线访问</a> ·
   <a href="https://linux.do">LINUX DO</a> ·
+  <a href="#在线使用">在线使用</a> ·
   <a href="#为什么做-priceai">为什么做</a> ·
   <a href="#适合谁">适合谁</a> ·
   <a href="#priceai-怎么解决">怎么解决</a> ·
+  <a href="#用户指南">用户指南</a> ·
   <a href="#快速开始">快速开始</a> ·
+  <a href="#faq">FAQ</a> ·
   <a href="#文档">文档</a> ·
   <a href="#star-趋势">Star 趋势</a>
 </p>
@@ -31,6 +34,16 @@
 <p align="center">
   <img src="docs/assets/priceai-home-2026-06-02.png" alt="PriceAI product screenshot" width="100%" />
 </p>
+
+## 在线使用
+
+| 需求 | 入口 |
+| --- | --- |
+| 查看 AI 订阅卡网渠道报价 | [priceai.cc](https://priceai.cc) |
+| 比较 ChatGPT Plus / Pro / Team 报价 | [ChatGPT 比价](https://priceai.cc/platforms/chatgpt) |
+| 查看官方订阅地区价 | [官方订阅地区价](https://priceai.cc/official-prices) |
+| 比较模型 API 和免费 API 渠道 | [模型 API](https://priceai.cc/api-models) |
+| 了解卡网渠道是否靠谱 | [AI 订阅卡网渠道靠谱吗？](https://priceai.cc/guides/are-ai-subscription-card-shops-reliable) |
 
 ## 为什么做 PriceAI
 
@@ -110,6 +123,29 @@ PriceAI 的核心不是简单堆商品，而是把“原始报价”整理成“
 
 PriceAI 当前不做交易闭环，不收款，不做担保，也不承诺任何渠道的售后或长期可用性。
 
+## 用户指南
+
+- [AI 订阅卡网渠道靠谱吗？](https://priceai.cc/guides/are-ai-subscription-card-shops-reliable)
+- [为什么同一个 AI 订阅价格差这么多？](https://priceai.cc/guides/why-ai-subscription-prices-differ)
+- [ChatGPT 有哪些获取方式？](https://priceai.cc/guides/chatgpt-subscription-options)
+
+## FAQ
+
+### AI 卡网渠道是什么？
+
+这里的卡网渠道指售卖 AI 订阅、账号、卡密、CDK、邮箱、API 额度等数字商品的发卡站或渠道站。PriceAI 只整理公开报价和原站链接，不参与交易。
+
+### PriceAI 会卖货或担保渠道吗？
+
+不会。PriceAI 不卖货、不收款、不担保售后，只展示来源、原始标题、价格、库存和更新时间。购买前仍需要到原平台核验。
+
+### 为什么同一个 AI 订阅价格差这么多？
+
+常见原因包括官网正价、官方地区价、代订服务、成品号、卡密、CDK、团队邀请、短期权益和 API 额度等交付方式不同。
+
+### GitHub 这个项目和 priceai.cc 是什么关系？
+
+GitHub 仓库是 PriceAI 的开源代码和文档入口，priceai.cc 是线上可使用的比价工具。
 
 ## 快速开始
 
