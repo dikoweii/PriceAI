@@ -109,29 +109,16 @@ export default async function ProductDetail({
         </div>
 
         <section className="rounded-lg bg-[#f2f4f4] p-5 shadow-[0_20px_60px_rgba(45,52,53,0.04)] lg:p-6">
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(340px,460px)] lg:items-end">
-            <div className="min-w-0 max-w-4xl">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge>{platformIcon(product.platform, product.id)} {product.platform}</Badge>
-                <Badge>{productTypeLabel(product.productType)}</Badge>
-                <Badge>{product.spec}</Badge>
-              </div>
-              <h1 className="mt-4 font-serif text-3xl font-bold tracking-normal text-[#202829] sm:text-4xl">
-                {product.displayName}
-              </h1>
-              <p className="mt-3 text-sm leading-7 text-[#5a6061]">{product.summary}</p>
+          <div className="min-w-0 max-w-4xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge>{platformIcon(product.platform, product.id)} {product.platform}</Badge>
+              <Badge>{productTypeLabel(product.productType)}</Badge>
+              <Badge>{product.spec}</Badge>
             </div>
-
-            <div className="grid min-w-0 grid-cols-2 gap-3">
-              <ProductMetric
-                label="最低价"
-                value={product.lowestPrice !== null ? formatCurrency(product.lowestPrice, product.lowestOffer?.currency) : "暂无"}
-                tone={product.lowestPrice !== null ? "good" : "danger"}
-              />
-              <ProductMetric label="有货" value={`${product.inStockCount}`} />
-              <ProductMetric label="总报价" value={`${product.offerCount}`} />
-              <ProductMetric label="最近记录" value={formatRelativeTime(product.latestSeenAt)} />
-            </div>
+            <h1 className="mt-4 font-serif text-3xl font-bold tracking-normal text-[#202829] sm:text-4xl">
+              {product.displayName}
+            </h1>
+            <p className="mt-3 text-sm leading-7 text-[#5a6061]">{product.summary}</p>
           </div>
         </section>
 
@@ -521,25 +508,6 @@ function Badge({ children }: { children: React.ReactNode }) {
     <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#5a6061] ring-1 ring-[#adb3b4]/15">
       {children}
     </span>
-  );
-}
-
-function ProductMetric({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  tone?: "default" | "good" | "danger";
-}) {
-  return (
-    <div className="min-w-0 rounded-lg bg-white px-4 py-3 shadow-[0_12px_35px_rgba(45,52,53,0.035)] ring-1 ring-[#adb3b4]/15">
-      <p className="text-xs font-semibold text-[#5a6061]">{label}</p>
-      <p className={`mt-1 text-xl font-bold ${tone === "good" ? "text-[#2f7a4b]" : tone === "danger" ? "text-[#9b3328]" : "text-[#202829]"}`}>
-        {value}
-      </p>
-    </div>
   );
 }
 
