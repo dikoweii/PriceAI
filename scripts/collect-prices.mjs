@@ -977,9 +977,7 @@ function buildTarget(source, rawOffers) {
 
 function kamiCommodityUrl(target, id) {
   const base = target.baseUrl;
-  const host = normalizeHostname(base || target.sourceUrl);
-  if (host === "ai666.dnxb.cc") return `${base}/item/${encodeURIComponent(String(id))}`;
-  return `${base}/?commodity=${encodeURIComponent(String(id))}`;
+  return `${base}/item/${encodeURIComponent(String(id))}`;
 }
 
 function makeOffer(target, input) {
