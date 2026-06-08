@@ -435,7 +435,7 @@ const priceFloorByProductId = new Map<string, number>([
   ["claude-team-premium", 200],
   ["claude-max-5x", 100],
   ["claude-max-20x", 200],
-  ["gemini-ultra", 200],
+  ["gemini-ultra", 50],
 ]);
 
 export function getCanonicalProduct(id: string): CanonicalProduct {
