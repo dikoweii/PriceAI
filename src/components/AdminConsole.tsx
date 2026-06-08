@@ -498,6 +498,7 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
     () => filteredTodo.filter((submission) => selectedIds.has(submission.id)),
     [filteredTodo, selectedIds],
   );
+  const todoProbeTargetCount = selectedTodoSubmissions.length || filteredTodo.length;
   const failedRunCount = useMemo(
     () => data.crawlRuns.filter((r) => r.status === "failed").length,
     [data.crawlRuns],
@@ -1615,6 +1616,54 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
     });
   }
 
+  async function batchProbeTodo() {
+    const items = selectedTodoSubmissions.length ? selectedTodoSubmissions : filteredTodo;
+    if (!items.length) return;
+
+    setLoadingAction("batch-probe-todo");
+    setGlobalMessage({ type: "info", text: `正在重新试采集 ${items.length} 条待办，请稍等...` });
+
+    let successCount = 0;
+    let completedCount = 0;
+
+    for (const item of items) {
+      showRowFeedback(item.id, "info", "正在试采集，通常需要 10-30 秒...");
+      try {
+        const result = await request("/api/admin/submissions/probe", password, { id: item.id });
+        completedCount++;
+        if (result.ok && result.result) {
+          const probeResult = result.result as ProbeResult;
+          setProbeResults((prev) => ({ ...prev, [item.id]: probeResult }));
+          if (result.submission) {
+            setSubmissions((prev) => replaceSubmission(prev, result.submission as ChannelSubmission));
+          }
+          if (probeResult.status === "success") successCount++;
+          showRowFeedback(
+            item.id,
+            probeResult.status === "success" ? "success" : "error",
+            probeResult.message || "试采集完成。",
+          );
+        } else {
+          showRowFeedback(item.id, "error", result.message || "试采集失败。");
+        }
+      } catch (error) {
+        completedCount++;
+        showRowFeedback(item.id, "error", error instanceof Error ? error.message : "试采集失败。");
+      }
+
+      setGlobalMessage({
+        type: "info",
+        text: `重新试采集中：${completedCount}/${items.length}，成功 ${successCount} 条。`,
+      });
+    }
+
+    setLoadingAction(null);
+    setGlobalMessage({
+      type: successCount === items.length ? "success" : "info",
+      text: `重新试采集完成：成功 ${successCount}/${items.length} 条。`,
+    });
+  }
+
   /* ─── Render ─── */
 
   const toggleSelect = (id: string) => {
@@ -1967,6 +2016,18 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
                     >
                       {loadingAction === "batch-remove-todo" ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
                       移除选中 ({selectedTodoSubmissions.length})
+                    </button>
+                  )}
+                  {filteredTodo.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={batchProbeTodo}
+                      disabled={loadingAction === "batch-probe-todo"}
+                      title={selectedTodoSubmissions.length ? "重新试采集选中的待办" : "重新试采集当前筛选出的全部待办"}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#2f7a4b]/25 bg-white px-3 text-xs font-medium text-[#2f7a4b] transition-colors hover:bg-[#eef8f1] disabled:opacity-60"
+                    >
+                      {loadingAction === "batch-probe-todo" ? <Loader2 size={14} className="animate-spin" /> : <RefreshCcw size={14} />}
+                      一键重新试采集 ({todoProbeTargetCount})
                     </button>
                   )}
                   {filteredTodo.length > 0 && (
