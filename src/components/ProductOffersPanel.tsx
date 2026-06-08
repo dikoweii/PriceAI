@@ -252,7 +252,8 @@ function OfferTable({ offers, onFeedback }: { offers: RawOffer[]; onFeedback: (o
             <col />
             <col className="w-[130px]" />
             <col className="w-[150px]" />
-            <col className="w-[190px]" />
+            <col className="w-[140px]" />
+            <col className="w-[80px]" />
           </colgroup>
           <thead className="bg-[#f2f4f4] text-[0.68rem] font-semibold text-[#5a6061]">
             <tr>
@@ -261,7 +262,8 @@ function OfferTable({ offers, onFeedback }: { offers: RawOffer[]; onFeedback: (o
               <TableHead>原始商品名</TableHead>
               <TableHead>价格</TableHead>
               <TableHead>更新时间</TableHead>
-              <TableHead>操作</TableHead>
+              <TableHead className="text-center">操作</TableHead>
+              <TableHead className="text-center">反馈</TableHead>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#edf0f1]">
@@ -290,8 +292,11 @@ function OfferTable({ offers, onFeedback }: { offers: RawOffer[]; onFeedback: (o
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-5 py-4 text-[#5a6061]">{formatRelativeTime(offerTimestamp(offer))}</td>
-                  <td className="px-4 py-3">
-                    <OfferActions offer={offer} available={available} onFeedback={onFeedback} compact />
+                  <td className="px-3 py-3 text-center">
+                    <OfferLink offer={offer} available={available} compact />
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    <OfferFeedbackButton offer={offer} onFeedback={onFeedback} compact />
                   </td>
                 </tr>
               );
@@ -328,8 +333,8 @@ function OfferListItem({ offer, onFeedback }: { offer: RawOffer; onFeedback: (of
   );
 }
 
-function TableHead({ children }: { children: React.ReactNode }) {
-  return <th className="px-5 py-3 font-semibold">{children}</th>;
+function TableHead({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <th className={`px-5 py-3 font-semibold ${className}`}>{children}</th>;
 }
 
 function OfferStatusBadge({ available }: { available: boolean }) {
@@ -344,7 +349,7 @@ function OfferStatusBadge({ available }: { available: boolean }) {
   );
 }
 
-function OfferLink({
+export function OfferLink({
   offer,
   available,
   compact = false,
@@ -390,19 +395,33 @@ export function OfferActions({
   return (
     <div className="flex flex-nowrap items-center justify-end gap-2">
       <OfferLink offer={offer} available={available} compact={compact} />
-      <button
-        type="button"
-        onClick={() => onFeedback(offer)}
-        title="反馈报价问题"
-        aria-label="反馈报价问题"
-        className={`inline-flex shrink-0 items-center justify-center rounded-full border border-[#adb3b4]/30 bg-white text-xs font-semibold text-[#5a6061] transition hover:border-[#5a6061]/35 hover:bg-[#f2f4f4] ${
-          compact ? "h-9 w-9" : "h-10 px-3"
-        }`}
-      >
-        <Flag size={14} />
-        {!compact ? <span className="ml-1.5">反馈</span> : null}
-      </button>
+      <OfferFeedbackButton offer={offer} onFeedback={onFeedback} compact={compact} />
     </div>
+  );
+}
+
+export function OfferFeedbackButton({
+  offer,
+  onFeedback,
+  compact = false,
+}: {
+  offer: RawOffer;
+  onFeedback: (offer: RawOffer) => void;
+  compact?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onFeedback(offer)}
+      title="反馈报价问题"
+      aria-label="反馈报价问题"
+      className={`inline-flex shrink-0 items-center justify-center rounded-full border border-[#adb3b4]/30 bg-white text-xs font-semibold text-[#5a6061] transition hover:border-[#5a6061]/35 hover:bg-[#f2f4f4] ${
+        compact ? "h-9 w-9" : "h-10 px-3"
+      }`}
+    >
+      <Flag size={14} />
+      {!compact ? <span className="ml-1.5">反馈</span> : null}
+    </button>
   );
 }
 

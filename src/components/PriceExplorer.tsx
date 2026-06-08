@@ -20,7 +20,7 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BrandIcon } from "@/components/BrandIcon";
 import { CategoryTabBar, CategoryTabStrip, type CategoryTabItem } from "@/components/CategoryTabBar";
-import { OfferActions, OfferFeedbackDialog } from "@/components/ProductOffersPanel";
+import { OfferActions, OfferFeedbackButton, OfferFeedbackDialog, OfferLink } from "@/components/ProductOffersPanel";
 import { SiteHeader } from "@/components/SiteHeader";
 import {
   collectOfferFlags,
@@ -948,7 +948,17 @@ function PlatformOfferTable({
     <>
       <div className="hidden overflow-hidden rounded-lg bg-white shadow-[0_20px_55px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15 md:block">
         <div className="overflow-x-auto">
-          <table className="min-w-[1120px] w-full border-collapse text-left text-sm">
+          <table className="min-w-[1200px] w-full border-collapse text-left text-sm">
+            <colgroup>
+              <col className="w-[110px]" />
+              <col className="w-[190px]" />
+              <col className="w-[220px]" />
+              <col />
+              <col className="w-[130px]" />
+              <col className="w-[150px]" />
+              <col className="w-[140px]" />
+              <col className="w-[80px]" />
+            </colgroup>
             <thead className="bg-[#f2f4f4] text-[0.68rem] font-semibold text-[#5a6061]">
               <tr>
                 <TableHead>状态</TableHead>
@@ -957,7 +967,8 @@ function PlatformOfferTable({
                 <TableHead>原始商品名</TableHead>
                 <TableHead>价格</TableHead>
                 <TableHead>最近确认</TableHead>
-                <TableHead>操作</TableHead>
+                <TableHead className="text-center">操作</TableHead>
+                <TableHead className="text-center">反馈</TableHead>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#edf0f1]">
@@ -999,10 +1010,12 @@ function PlatformOfferTable({
                     <td className="px-5 py-4 text-[#5a6061]">
                       <RelativeTime value={offerTimestamp(offer)} />
                     </td>
-                    <td className="px-5 py-4">
-                      <OfferActions
+                    <td className="px-3 py-3 text-center">
+                      <OfferLink offer={offer} available={available} compact />
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      <OfferFeedbackButton
                         offer={offer}
-                        available={available}
                         onFeedback={(selectedOffer) => onFeedback({ offer: selectedOffer, product })}
                         compact
                       />
@@ -1347,8 +1360,8 @@ function MobileProductCard({
   );
 }
 
-function TableHead({ children }: { children: ReactNode }) {
-  return <th className="px-5 py-3 font-semibold">{children}</th>;
+function TableHead({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <th className={`px-5 py-3 font-semibold ${className}`}>{children}</th>;
 }
 
 function ViewToggleButton({
