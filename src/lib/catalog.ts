@@ -465,6 +465,18 @@ export function classifyOffer(
     return getCanonicalProduct("openai-api-cdk");
   }
 
+  if (isGeminiProduct(value)) {
+    if (matches(value, ["ultra", "250美元", "250 美元", "45k", "25k", "企业"])) {
+      return getCanonicalProduct("gemini-ultra");
+    }
+
+    return getCanonicalProduct("gemini-pro-year");
+  }
+
+  if (isEmailAccountWithVerificationNote(value)) {
+    return getCanonicalProduct(classifyPureEmail(value));
+  }
+
   if (isPureEmail(value)) {
     return getCanonicalProduct(classifyPureEmail(value));
   }
@@ -493,20 +505,20 @@ export function classifyOffer(
     return getCanonicalProduct("claude-account");
   }
 
-  if (isGeminiProduct(value)) {
-    if (matches(value, ["ultra", "250美元", "250 美元", "45k", "25k", "企业"])) {
-      return getCanonicalProduct("gemini-ultra");
-    }
-
-    return getCanonicalProduct("gemini-pro-year");
-  }
-
   if (isGrokProduct(value)) {
     if (matches(value, ["super", "supergrok", "heavy", "月卡", "年卡", "激活码", "卡密", "直充", "充值"])) {
       return getCanonicalProduct("super-grok");
     }
 
     return getCanonicalProduct("grok-account");
+  }
+
+  if (isClaudeMax20Product(value)) {
+    return getCanonicalProduct("claude-max-20x");
+  }
+
+  if (isClaudeMax5Product(value)) {
+    return getCanonicalProduct("claude-max-5x");
   }
 
   if (isChatGptPro20(value)) {
@@ -775,6 +787,14 @@ function isSupportService(value: string): boolean {
 function isVerificationService(value: string): boolean {
   if (isStandaloneVerificationService(value)) return true;
 
+  if (isEmailAccountWithVerificationNote(value)) {
+    return false;
+  }
+
+  if (isXTwitterAccountWithLoginBundle(value)) {
+    return false;
+  }
+
   if (isBundledVerificationAccount(value)) {
     return false;
   }
@@ -812,8 +832,13 @@ function isBundledVerificationAccount(value: string): boolean {
     "需接码",
     "需使用自行接码",
     "不需要手机验证接码",
+    "不需要手机验证",
+    "无需手机验证",
     "带接码地址",
     "带接码链接",
+    "带电话接码链接",
+    "原始接码链接",
+    "接码链接",
     "长效接码链接",
     "包含长效接码",
   ]);
@@ -824,7 +849,7 @@ function isStandaloneVerificationService(value: string): boolean {
     return true;
   }
 
-  if (matches(value, ["sms 接码", "短信接码", "短信 接码", "实卡接码", "实体卡接码", "收码"])) {
+  if (matches(value, ["sms 接码", "短信接码", "短信 接码", "实卡接码", "实体卡接码", "短效接码", "短效 接码", "收码"])) {
     return true;
   }
 
@@ -852,6 +877,14 @@ function isStandaloneVerificationService(value: string): boolean {
       "google gemini接码",
       "gemini 接码",
       "claude 接码",
+      "google接码",
+      "google 接码",
+      "谷歌接码",
+      "谷歌邮箱接码",
+      "gmail接码",
+      "gmail 接码",
+      "专用gmail接码",
+      "专用 gmail 接码",
     ]) &&
     !hasAccountBundleSignal(value)
   ) {
@@ -878,6 +911,60 @@ function hasAccountBundleSignal(value: string): boolean {
     "一年",
     "会员",
     "订阅",
+  ]);
+}
+
+function hasEmailSignal(value: string): boolean {
+  return matches(value, [
+    "gmail",
+    "mail邮箱",
+    "邮箱",
+    "谷歌邮箱",
+    "google 邮箱",
+    "google邮箱",
+    "google个人邮箱",
+    "google 个人邮箱",
+    "谷歌账号",
+    "google 账号",
+    "hotmail",
+    "outlook",
+    "微软邮箱",
+    "microsoft 邮箱",
+    "教育邮箱",
+    "edu 邮箱",
+    "学校邮箱",
+    "域名邮箱",
+    "企业邮箱",
+  ]);
+}
+
+function isEmailAccountWithVerificationNote(value: string): boolean {
+  if (!hasEmailSignal(value)) return false;
+  if (isAiSubscriptionOrAccountTitle(value)) return false;
+  if (/\b(tg|telegram)\b/.test(value) || matches(value, ["电报"])) return false;
+  if (matches(value, ["接码自助", "手机接码自助", "sms 接码", "短信接码", "实卡接码", "实体卡接码", "单次接码", "一次性接码"])) {
+    return false;
+  }
+
+  if (matches(value, ["短效接码", "专用gmail接码", "专用 gmail 接码", "google 接码", "google接码", "谷歌接码", "谷歌邮箱接码", "gmail接码", "gmail 接码"])) {
+    return false;
+  }
+
+  return matches(value, [
+    "老号邮箱",
+    "高权重老邮箱",
+    "随机地区",
+    "带2fa",
+    "带 2fa",
+    "邮箱带2fa",
+    "原始接码链接",
+    "带电话接码链接",
+    "电话接码链接",
+    "不需要手机验证",
+    "无需手机验证",
+    "会接码的买",
+    "登陆需要接码验证",
+    "登录需要接码验证",
   ]);
 }
 
@@ -942,6 +1029,12 @@ function isXTwitterAccount(value: string): boolean {
   return false;
 }
 
+function isXTwitterAccountWithLoginBundle(value: string): boolean {
+  if (!isXTwitterAccount(value)) return false;
+
+  return matches(value, ["账号", "账户", "三绑", "token", "登录", "登陆", "2fa", "premium", "会员", "hotmail邮箱可用"]);
+}
+
 function isAppleIdAccount(value: string): boolean {
   if (matches(value, ["apple id", "appleid", "苹果 id", "苹果id", "苹果账号", "apple 账号"])) return true;
   if (matches(value, ["美区id", "美区 id", "土区id", "土区 id", "日区id", "日区 id", "港区id", "港区 id", "外区id", "外区 id"])) return true;
@@ -957,6 +1050,8 @@ function isNegatedPlus(value: string): boolean {
 function isApiProduct(value: string): boolean {
   if (isChatGptAccountOrSubscriptionDominant(value)) return false;
   if (isChatGptTeam(value)) return false;
+  if (isClaudeProduct(value) && matches(value, ["team", "席位", "标准席位", "高级席位", "1.25x", "1.25倍", "6.25x", "6.25倍"])) return false;
+  if (matches(value, ["gemini pro", "google ai pro"]) && matches(value, ["一年", "订阅", "cdk"])) return false;
 
   if (matches(value, ["claude/gpt/gemini中转站", "中转站", "中转余额", "中转 gpt", "api中转", "api 中转"])) return true;
   if (matches(value, ["中转api", "中转 api"])) return true;
@@ -965,6 +1060,8 @@ function isApiProduct(value: string): boolean {
   if (matches(value, ["gpt api", "openai api", "geminiapi", "gemini api"])) return true;
   if (matches(value, ["api 额度", "api额度", "api 100刀", "api 50刀", "api 300刀"])) return true;
   if (matches(value, ["余额兑换", "余额 兑换", "倍率"])) return true;
+  if (matches(value, ["余额充值", "充值余额", "美元额度", "美金额度", "刀额度"])) return true;
+  if (matches(value, ["额度"]) && matches(value, ["claude", "gemini", "gpt", "codex", "openai", "ai 平台"])) return true;
 
   return false;
 }
@@ -985,6 +1082,8 @@ function isPureEmail(value: string): boolean {
     "谷歌邮箱",
     "google 邮箱",
     "google邮箱",
+    "google个人邮箱",
+    "google 个人邮箱",
     "谷歌账号",
     "google 账号",
     "hotmail",
@@ -1028,13 +1127,28 @@ function isPureEmail(value: string): boolean {
 function classifyPureEmail(value: string): string {
   if (matches(value, ["教育邮箱", "edu 邮箱", "学校邮箱", ".edu"])) return "education-email";
   if (matches(value, ["outlook", "hotmail", "微软邮箱", "microsoft 邮箱", "oauth2", "graph"])) return "outlook-account";
-  if (matches(value, ["gmail", "谷歌邮箱", "google 邮箱", "google邮箱", "谷歌账号", "google 账号"])) return "gmail-account";
+  if (matches(value, ["gmail", "谷歌邮箱", "google 邮箱", "google邮箱", "google个人邮箱", "google 个人邮箱", "谷歌账号", "google 账号"])) return "gmail-account";
 
   return "email-account";
 }
 
 function isClaudeProduct(value: string): boolean {
   return matches(value, ["claude", "克劳德"]);
+}
+
+function isClaudeMax20Product(value: string): boolean {
+  if (matches(value, ["chatgpt", "gpt", "openai", "gemini", "grok"])) return false;
+  if (!matches(value, ["max"])) return false;
+
+  return matches(value, ["max20", "max 20", "20x", "x20", "20倍"]);
+}
+
+function isClaudeMax5Product(value: string): boolean {
+  if (matches(value, ["chatgpt", "gpt", "openai", "gemini", "grok"])) return false;
+  if (!matches(value, ["max"])) return false;
+  if (isClaudeMax20Product(value)) return false;
+
+  return matches(value, ["max5", "max 5", "5x", "x5", "5倍"]);
 }
 
 function isClaudeTeamProduct(value: string): boolean {
@@ -1065,6 +1179,12 @@ function isClaudeTeamStandard(value: string): boolean {
 }
 
 function isGeminiProduct(value: string): boolean {
+  if (matches(value, ["失败的号", "失败号", "跑gemini pro 失败", "跑 gemini pro 失败"])) return false;
+
+  if (matches(value, ["gcp", "反重力"]) && matches(value, ["pro12个月", "pro 12个月", "12个月", "一年"])) {
+    return true;
+  }
+
   return matches(value, ["gemini", "google ai", "ai ultra"]) || (matches(value, ["pixel"]) && matches(value, ["pro", "订阅"]));
 }
 
@@ -1194,7 +1314,7 @@ function isChatGptAccountTitle(value: string): boolean {
 
 function isChatGptAccountOrSubscriptionDominant(value: string): boolean {
   if (!matches(value, ["chatgpt", "gpt", "openai", "plus"])) return false;
-  if (matches(value, ["codex api", "api cdk", "api 额度", "api额度", "api中转", "api 中转", "充值余额", "中转余额"])) return false;
+  if (matches(value, ["codex api", "api cdk", "api 额度", "api额度", "api中转", "api 中转", "充值余额", "余额充值", "中转余额", "美元额度", "美金额度", "刀额度"])) return false;
 
   return isChatGptPlus(value) || isChatGptFreeAccount(value) || isChatGptAccountTitle(value);
 }
