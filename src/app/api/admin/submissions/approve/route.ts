@@ -1,27 +1,11 @@
 import { z } from "zod";
 import { approveSubmission, getAdminPasswordFromRequest } from "@/lib/admin";
+import { normalizeCollectorKind } from "@/lib/collector-registry";
 import { clearPublicDataCache } from "@/lib/data";
 import { requireAdminPassword } from "@/lib/env";
+import type { CollectorKind } from "@/lib/types";
 
-const collectorKindSchema = z.enum([
-  "auto",
-  "kami",
-  "dujiao",
-  "shopApi",
-  "xiaoheiwan",
-  "opensoraHtml",
-  "makerichHtml",
-  "beibeiHtml",
-  "ikunloveApi",
-  "getgptApi",
-  "publicProductsApi",
-  "shopUserProductsApi",
-  "unicornHtml",
-  "mooncakeCatalog",
-  "genericHtml",
-  "browser",
-  "unsupported",
-]);
+const collectorKindSchema = z.custom<CollectorKind>((value) => normalizeCollectorKind(value) === value);
 
 const schema = z.object({
   id: z.string().min(1),

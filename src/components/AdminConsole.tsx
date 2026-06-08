@@ -31,6 +31,13 @@ import { useRouter } from "next/navigation";
 import type { FormEvent, ReactNode, UIEvent } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiProviderTypeLabels } from "@/lib/api-models";
+import {
+  collectorKindLabel,
+  collectorKindOptions,
+  inferCollectorKindFromHost,
+  isCollectorKind,
+  knownAutoCollectorHosts as createKnownAutoCollectorHosts,
+} from "@/lib/collector-registry";
 import type {
   AdminSummary,
   ChannelSubmission,
@@ -183,26 +190,6 @@ type SourceGroup = {
 const statusOptions: Array<[OfferStatus, string]> = [
   ["in_stock", "有货"],
   ["out_of_stock", "缺货"],
-];
-
-const collectorKindOptions: Array<[CollectorKind, string]> = [
-  ["auto", "自动识别"],
-  ["kami", "Kami"],
-  ["dujiao", "独角数卡"],
-  ["shopApi", "ShopApi"],
-  ["xiaoheiwan", "小黑万"],
-  ["opensoraHtml", "OpenSora HTML"],
-  ["makerichHtml", "Makerich HTML"],
-  ["beibeiHtml", "贝贝 HTML"],
-  ["ikunloveApi", "IkunLove API"],
-  ["getgptApi", "GetGPT API"],
-  ["publicProductsApi", "公开商品 API"],
-  ["shopUserProductsApi", "Shop User API"],
-  ["unicornHtml", "Unicorn HTML"],
-  ["mooncakeCatalog", "Mooncake Catalog"],
-  ["genericHtml", "通用 HTML"],
-  ["browser", "本机浏览器"],
-  ["unsupported", "暂不支持"],
 ];
 
 const OFFER_EMERGENCY_PAGE_SIZE = 50;
@@ -5975,10 +5962,6 @@ function collectorKindMeta(meta: Record<string, unknown>, key: string): Collecto
   return isCollectorKind(value) ? value : null;
 }
 
-function isCollectorKind(value: string | null): value is CollectorKind {
-  return Boolean(value && collectorKindOptions.some(([kind]) => kind === value));
-}
-
 function isRunnableCollector(value: CollectorKind | null): boolean {
   return Boolean(value && value !== "auto" && value !== "browser" && value !== "unsupported");
 }
@@ -5992,10 +5975,6 @@ function collectionMethodLabel(value: string): string {
     public_json_import: "公开 JSON",
   };
   return labels[value] || value;
-}
-
-function collectorKindLabel(value: string): string {
-  return collectorKindOptions.find(([kind]) => kind === value)?.[1] || value;
 }
 
 function crawlStatusLabel(value: CrawlRun["status"]): string {
@@ -6123,39 +6102,7 @@ function sourceHealthClass(source: Source): string {
   return `${base} bg-[#e8f3ec] text-[#2f7a4b]`;
 }
 
-const knownAutoCollectorHosts = new Set([
-  "ai666.dnxb.cc",
-  "aifk.opensora.de",
-  "aisou.pro",
-  "bei-bei.shop",
-  "burstpro-ai.online",
-  "caowo.store",
-  "card.kxandyou.com",
-  "faka.redeemgpt.com",
-  "feifei.shop",
-  "fk.gptcz.cc",
-  "fk1.ybkjs.top",
-  "getgpt.pro",
-  "ikunlove.best",
-  "kapay.shop",
-  "ldxp.cn",
-  "makerich.club",
-  "meowka.vip",
-  "ouvg.top",
-  "pay.ldxp.cn",
-  "pay.qxvx.cn",
-  "sd.ncet.top",
-  "shop.aitonse.com",
-  "shop.auto-subscribe.com",
-  "shop.mfttai.com",
-  "shopcardai.click",
-  "talkai.cyou",
-  "ultra.makelove.cloud",
-  "upgrade.xiaoheiwan.com",
-  "yh-mo.xyz",
-  "zhang520.store",
-  "zzshu.com",
-]);
+const knownAutoCollectorHosts = createKnownAutoCollectorHosts();
 
 function sourceHost(source: Source): string {
   const host = safeDomain(source.entryUrl || source.baseUrl || "") || "";
@@ -6165,23 +6112,7 @@ function sourceHost(source: Source): string {
 function inferCollectorKindFromSource(source: Source): CollectorKind | null {
   const host = sourceHost(source);
   const text = `${source.id} ${source.name} ${source.entryUrl} ${source.baseUrl || ""}`.toLowerCase();
-  if (["123456787kelie.top", "acg.nbcode.xyz", "ai666.dnxb.cc", "ai666.id", "aisou.pro", "caowo.store", "dimosky.com", "douyiner.cn", "faka.redeemgpt.com", "feifei.shop", "fk.gptcz.cc", "fk.ybkjs.top", "gemini91.shop", "gmail1888.com", "hiemail.store", "lynnzee.myweb999.cfd", "nikoers.com", "shopcardai.click", "shop.bmoplus.com", "shop.gpt365.wiki", "shihuiai.cn", "talkai.cyou", "tehuio.com", "web3chirou.com", "yh-mo.xyz", "zhanghao66.com", "zzshu.com"].includes(host)) return "kami";
-  if (["11.id2323.top", "ac-card.org", "burstpro-ai.online", "card.kxandyou.com", "ccdawang.win", "fk.txspvip.xyz", "gmail91.shop", "kapay.shop", "morimm.com", "shop.aitonse.com", "shop.auto-subscribe.com", "shop.mfttai.com", "ultra.makelove.cloud", "zhang520.store"].includes(host)) return "dujiao";
-  if (["academicgate.org", "catcard.uk"].includes(host)) return "publicProductsApi";
-  if (host === "sd.ncet.top") return "shopUserProductsApi";
-  if (["meowka.vip", "ouvg.top"].includes(host)) return "unicornHtml";
-  if (host === "fk1.ybkjs.top") return "mooncakeCatalog";
-  if (host === "pay.qxvx.cn" || host === "pay.ldxp.cn" || host === "ldxp.cn") return "shopApi";
-  if (host === "upgrade.xiaoheiwan.com") return "xiaoheiwan";
-  if (host === "aifk.opensora.de") return "opensoraHtml";
-  if (host === "makerich.club") return "makerichHtml";
-  if (host === "bei-bei.shop") return "beibeiHtml";
-  if (host === "ikunlove.best") return "ikunloveApi";
-  if (host === "getgpt.pro") return "getgptApi";
-  if (host === "catfk.com") return "shopApi";
-  if (["19cm.tech", "of365.vip", "woaimaihao.com", "xingbao-ai.shop", "xxxyan.cc"].includes(host)) return "genericHtml";
-  if (text.includes("burstpro")) return "dujiao";
-  return null;
+  return inferCollectorKindFromHost(host, text);
 }
 
 function resolvedCollectorKind(source: Source): CollectorKind | null {

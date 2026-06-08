@@ -5,6 +5,7 @@ import {
   upsertRawOffers,
   upsertSource,
 } from "@/lib/admin";
+import { normalizeCollectorKind } from "@/lib/collector-registry";
 import { clearPublicDataCache } from "@/lib/data";
 import { requireAdminOrCronPassword } from "@/lib/env";
 import { pruneOperationalLogs } from "@/lib/operational-logs";
@@ -120,29 +121,7 @@ export async function POST(request: Request) {
 }
 
 function collectorKindFromDetails(details: Record<string, unknown> | undefined) {
-  const value = details?.collector;
-  if (
-    value === "auto" ||
-    value === "kami" ||
-    value === "dujiao" ||
-    value === "shopApi" ||
-    value === "xiaoheiwan" ||
-    value === "opensoraHtml" ||
-    value === "makerichHtml" ||
-    value === "beibeiHtml" ||
-    value === "ikunloveApi" ||
-    value === "getgptApi" ||
-    value === "publicProductsApi" ||
-    value === "shopUserProductsApi" ||
-    value === "unicornHtml" ||
-    value === "mooncakeCatalog" ||
-    value === "genericHtml" ||
-    value === "browser" ||
-    value === "unsupported"
-  ) {
-    return value;
-  }
-  return null;
+  return normalizeCollectorKind(details?.collector);
 }
 
 function fullSnapshotFromDetails(details: Record<string, unknown> | undefined, status: string): boolean {

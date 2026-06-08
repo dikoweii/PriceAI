@@ -5,6 +5,7 @@ import { notifyOperationalIssue } from "./alerts";
 import { buildProductGroups, canonicalCatalog, comparePlatformOrder, resolveOfferProduct } from "./catalog";
 import { isSupabaseConfigured } from "./env";
 import { getApiModelAdminData } from "./api-models-db";
+import { normalizeCollectorKind } from "./collector-registry";
 import { getOfficialSubscriptionAdminData } from "./official-prices-db";
 import { seedRawOffers, seedSources } from "./sample-data";
 import { getSupabaseServerClient } from "./supabase";
@@ -1391,7 +1392,7 @@ export function mapSource(row: Record<string, unknown>): Source {
     baseUrl: row.base_url ? String(row.base_url) : null,
     entryUrl: String(row.entry_url || row.base_url || ""),
     collectionMethod: String(row.collection_method || "manual") as Source["collectionMethod"],
-    collectorKind: normalizeCollectorKind(row.collector_kind),
+    collectorKind: normalizeSourceCollectorKind(row.collector_kind),
     enabled: Boolean(row.enabled),
     notes: row.notes ? String(row.notes) : null,
     healthStatus: row.health_status ? String(row.health_status) as Source["healthStatus"] : null,
@@ -1406,25 +1407,8 @@ export function mapSource(row: Record<string, unknown>): Source {
   };
 }
 
-function normalizeCollectorKind(value: unknown): Source["collectorKind"] {
-  if (
-    value === "auto" ||
-    value === "kami" ||
-    value === "dujiao" ||
-    value === "shopApi" ||
-    value === "xiaoheiwan" ||
-    value === "opensoraHtml" ||
-    value === "makerichHtml" ||
-    value === "beibeiHtml" ||
-    value === "ikunloveApi" ||
-    value === "getgptApi" ||
-    value === "genericHtml" ||
-    value === "browser" ||
-    value === "unsupported"
-  ) {
-    return value;
-  }
-  return null;
+function normalizeSourceCollectorKind(value: unknown): Source["collectorKind"] {
+  return normalizeCollectorKind(value);
 }
 
 export function mapRawOffer(row: Record<string, unknown>): RawOffer {

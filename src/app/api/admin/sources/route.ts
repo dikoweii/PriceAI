@@ -1,28 +1,12 @@
 import { deleteSource, getAdminPasswordFromRequest, setSourceOffersHidden, updateSourceState, upsertSource } from "@/lib/admin";
+import { normalizeCollectorKind } from "@/lib/collector-registry";
 import { clearPublicDataCache } from "@/lib/data";
 import { requireAdminPassword } from "@/lib/env";
+import type { CollectorKind } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-const collectorKindSchema = z.enum([
-  "auto",
-  "kami",
-  "dujiao",
-  "shopApi",
-  "xiaoheiwan",
-  "opensoraHtml",
-  "makerichHtml",
-  "beibeiHtml",
-  "ikunloveApi",
-  "getgptApi",
-  "publicProductsApi",
-  "shopUserProductsApi",
-  "unicornHtml",
-  "mooncakeCatalog",
-  "genericHtml",
-  "browser",
-  "unsupported",
-]);
+const collectorKindSchema = z.custom<CollectorKind>((value) => normalizeCollectorKind(value) === value);
 
 const createSchema = z.object({
   name: z.string().min(1),

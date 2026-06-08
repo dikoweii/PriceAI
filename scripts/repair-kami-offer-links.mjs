@@ -1,38 +1,20 @@
 #!/usr/bin/env node
 
 import { createClient } from "@supabase/supabase-js";
+import collectorRegistry from "../config/collectors.json" with { type: "json" };
 
-const KAMI_HOSTS = new Set([
-  "123456787kelie.top",
-  "ai666.dnxb.cc",
-  "ai666.id",
-  "aisou.pro",
-  "caowo.store",
-  "dimosky.com",
-  "douyiner.cn",
-  "faka.redeemgpt.com",
-  "feifei.shop",
-  "fk.ybkjs.top",
-  "gemini91.shop",
-  "gmail1888.com",
-  "hiemail.store",
-  "lynnzee.myweb999.cfd",
-  "nikoers.com",
-  "shopcardai.click",
-  "shop.bmoplus.com",
-  "shop.gpt365.wiki",
-  "shihuiai.cn",
-  "talkai.cyou",
-  "tehuio.com",
-  "web3chirou.com",
-  "yh-mo.xyz",
-  "zhanghao66.com",
-  "zzshu.com",
-]);
+const KAMI_HOSTS = collectorHostsForKind("kami");
 
 const APPLY = process.argv.includes("--apply");
 const PAGE_SIZE = 1000;
 const UPDATE_CONCURRENCY = 12;
+
+function collectorHostsForKind(kind) {
+  return new Set(
+    (collectorRegistry.kinds.find((entry) => entry.kind === kind)?.hosts || [])
+      .map((host) => normalizeHostname(host)),
+  );
+}
 
 async function main() {
   const supabase = getSupabaseClient();

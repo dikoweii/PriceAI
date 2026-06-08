@@ -4,81 +4,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { safeFetch } from "./safe-fetch.mjs";
+import collectorRegistry from "../config/collectors.json" with { type: "json" };
 
 const env = readEnvFile(".env.local");
-
-const KAMI_HOSTS = new Set([
-  "123456787kelie.top",
-  "acg.nbcode.xyz",
-  "ai666.dnxb.cc",
-  "ai666.id",
-  "aisou.pro",
-  "caowo.store",
-  "dimosky.com",
-  "douyiner.cn",
-  "faka.redeemgpt.com",
-  "feifei.shop",
-  "fk.gptcz.cc",
-  "fk.ybkjs.top",
-  "gemini91.shop",
-  "gmail1888.com",
-  "hiemail.store",
-  "lynnzee.myweb999.cfd",
-  "nikoers.com",
-  "shopcardai.click",
-  "shop.bmoplus.com",
-  "shop.gpt365.wiki",
-  "shihuiai.cn",
-  "talkai.cyou",
-  "tehuio.com",
-  "web3chirou.com",
-  "yh-mo.xyz",
-  "zhanghao66.com",
-  "zzshu.com",
-]);
-
-const DUJIAO_HOSTS = new Set([
-  "11.id2323.top",
-  "burstpro-ai.online",
-  "card.kxandyou.com",
-  "ccdawang.win",
-  "fk.txspvip.xyz",
-  "gmail91.shop",
-  "kapay.shop",
-  "morimm.com",
-  "ac-card.org",
-  "shop.aitonse.com",
-  "shop.auto-subscribe.com",
-  "shop.mfttai.com",
-  "ultra.makelove.cloud",
-  "zhang520.store",
-]);
-
-const GENERIC_HTML_HOSTS = new Set([
-  "19cm.tech",
-  "of365.vip",
-  "woaimaihao.com",
-  "xingbao-ai.shop",
-  "xxxyan.cc",
-]);
-
-const PUBLIC_PRODUCTS_API_HOSTS = new Set([
-  "academicgate.org",
-  "catcard.uk",
-]);
-
-const SHOP_USER_PRODUCTS_API_HOSTS = new Set([
-  "sd.ncet.top",
-]);
-
-const UNICORN_HTML_HOSTS = new Set([
-  "meowka.vip",
-  "ouvg.top",
-]);
-
-const MOONCAKE_CATALOG_HOSTS = new Set([
-  "fk1.ybkjs.top",
-]);
 
 const PRICE_VALUE_PATTERN = String.raw`(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)`;
 const CURRENCY_PRICE_RE = new RegExp(String.raw`[¥￥]\s*${PRICE_VALUE_PATTERN}`);
@@ -1698,48 +1626,34 @@ function lockSecondsFor(options = {}) {
 }
 
 function inferCollectorKind(host, text = "") {
-  if (KAMI_HOSTS.has(host)) return "kami";
-  if (DUJIAO_HOSTS.has(host)) return "dujiao";
-  if (PUBLIC_PRODUCTS_API_HOSTS.has(host)) return "publicProductsApi";
-  if (SHOP_USER_PRODUCTS_API_HOSTS.has(host)) return "shopUserProductsApi";
-  if (UNICORN_HTML_HOSTS.has(host)) return "unicornHtml";
-  if (MOONCAKE_CATALOG_HOSTS.has(host)) return "mooncakeCatalog";
-  if (host === "pay.qxvx.cn" || host === "pay.ldxp.cn" || host === "ldxp.cn") return "shopApi";
-  if (host === "upgrade.xiaoheiwan.com") return "xiaoheiwan";
-  if (host === "aifk.opensora.de") return "opensoraHtml";
-  if (host === "makerich.club") return "makerichHtml";
-  if (host === "bei-bei.shop") return "beibeiHtml";
-  if (host === "ikunlove.best") return "ikunloveApi";
-  if (host === "getgpt.pro") return "getgptApi";
-  if (host === "catfk.com") return "shopApi";
-  if (GENERIC_HTML_HOSTS.has(host)) return "genericHtml";
+  for (const entry of collectorRegistry.kinds) {
+    if (collectorHostsForKind(entry.kind).has(host)) return entry.kind;
+  }
   if (text.includes("burstpro")) return "dujiao";
   return null;
 }
 
 function normalizeCollectorKind(value) {
   const text = String(value || "").trim();
-  return [
-    "auto",
-    "kami",
-    "dujiao",
-    "shopApi",
-    "xiaoheiwan",
-    "opensoraHtml",
-    "makerichHtml",
-    "beibeiHtml",
-    "ikunloveApi",
-    "getgptApi",
-    "publicProductsApi",
-    "shopUserProductsApi",
-    "unicornHtml",
-    "mooncakeCatalog",
-    "genericHtml",
-    "browser",
-    "unsupported",
-  ].includes(text)
+  return collectorKindValues().includes(text)
     ? text
     : null;
+}
+
+function collectorHostsForKind(kind) {
+  return new Set(
+    (collectorRegistry.kinds.find((entry) => entry.kind === kind)?.hosts || [])
+      .map((host) => normalizeHostname(host)),
+  );
+}
+
+function collectorKindValues() {
+  return [
+    "auto",
+    ...collectorRegistry.kinds.map((entry) => entry.kind),
+    "browser",
+    "unsupported",
+  ];
 }
 
 function publicProductUrl(target, product) {

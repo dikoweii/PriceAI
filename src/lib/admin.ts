@@ -3,6 +3,11 @@ import "server-only";
 import { canonicalCatalog, classifyOffer } from "./catalog";
 import { ADMIN_SESSION_COOKIE, getAdminPassword, verifyAdminSessionToken } from "./env";
 import { freshnessFields } from "./freshness";
+import {
+  collectorHostsForKind,
+  inferCollectorKindFromHost,
+  normalizeCollectorKind as normalizeRegisteredCollectorKind,
+} from "./collector-registry";
 import { pruneOperationalLogs } from "./operational-logs";
 import { safeFetch } from "./safe-fetch";
 import { getSupabaseServerClient } from "./supabase";
@@ -813,7 +818,7 @@ function normalizeOfferUrlForStorage(value: string): string {
   if (!parsed) return value;
 
   const commodityId = parsed.searchParams.get("commodity");
-  if (!commodityId || !KAMI_HOSTS.has(normalizeHostname(parsed.hostname))) return value;
+  if (!commodityId || !collectorHostsForKind("kami").has(normalizeHostname(parsed.hostname))) return value;
 
   parsed.pathname = `/item/${encodeURIComponent(commodityId)}`;
   parsed.search = "";
@@ -1035,73 +1040,6 @@ function mapSourceRow(row: Record<string, unknown>): Source {
 const MAX_FETCH_BYTES = 256 * 1024;
 const FETCH_TIMEOUT_MS = 5000;
 const SHOP_API_TIMEOUT_MS = 8000;
-const KAMI_HOSTS = new Set([
-  "123456787kelie.top",
-  "acg.nbcode.xyz",
-  "ai666.dnxb.cc",
-  "ai666.id",
-  "aisou.pro",
-  "caowo.store",
-  "dimosky.com",
-  "douyiner.cn",
-  "faka.redeemgpt.com",
-  "feifei.shop",
-  "fk.gptcz.cc",
-  "fk.ybkjs.top",
-  "gemini91.shop",
-  "gmail1888.com",
-  "hiemail.store",
-  "lynnzee.myweb999.cfd",
-  "nikoers.com",
-  "shopcardai.click",
-  "shop.bmoplus.com",
-  "shop.gpt365.wiki",
-  "shihuiai.cn",
-  "talkai.cyou",
-  "tehuio.com",
-  "web3chirou.com",
-  "yh-mo.xyz",
-  "zhanghao66.com",
-  "zzshu.com",
-]);
-const DUJIAO_HOSTS = new Set([
-  "11.id2323.top",
-  "burstpro-ai.online",
-  "card.kxandyou.com",
-  "ccdawang.win",
-  "fk.txspvip.xyz",
-  "gmail91.shop",
-  "kapay.shop",
-  "morimm.com",
-  "ac-card.org",
-  "shop.aitonse.com",
-  "shop.auto-subscribe.com",
-  "shop.mfttai.com",
-  "ultra.makelove.cloud",
-  "zhang520.store",
-]);
-const GENERIC_HTML_HOSTS = new Set([
-  "19cm.tech",
-  "of365.vip",
-  "woaimaihao.com",
-  "xingbao-ai.shop",
-  "xxxyan.cc",
-]);
-const PUBLIC_PRODUCTS_API_HOSTS = new Set([
-  "academicgate.org",
-  "catcard.uk",
-]);
-const SHOP_USER_PRODUCTS_API_HOSTS = new Set([
-  "sd.ncet.top",
-]);
-const UNICORN_HTML_HOSTS = new Set([
-  "meowka.vip",
-  "ouvg.top",
-]);
-const MOONCAKE_CATALOG_HOSTS = new Set([
-  "fk1.ybkjs.top",
-]);
-
 export async function parseSubmissionMetadata(rawUrl: string): Promise<{
   url: string;
   parsedTitle: string | null;
@@ -1287,23 +1225,7 @@ async function resolveSourceFromKnownOffer(
 }
 
 function inferCollectorKind(host: string): string {
-  if (KAMI_HOSTS.has(host)) return "kami";
-  if (DUJIAO_HOSTS.has(host)) return "dujiao";
-  if (PUBLIC_PRODUCTS_API_HOSTS.has(host)) return "publicProductsApi";
-  if (SHOP_USER_PRODUCTS_API_HOSTS.has(host)) return "shopUserProductsApi";
-  if (UNICORN_HTML_HOSTS.has(host)) return "unicornHtml";
-  if (MOONCAKE_CATALOG_HOSTS.has(host)) return "mooncakeCatalog";
-  if (host === "pay.qxvx.cn" || host === "pay.ldxp.cn" || host === "ldxp.cn") return "shopApi";
-  if (host === "upgrade.xiaoheiwan.com") return "xiaoheiwan";
-  if (host === "aifk.opensora.de") return "opensoraHtml";
-  if (host === "makerich.club") return "makerichHtml";
-  if (host === "bei-bei.shop") return "beibeiHtml";
-  if (host === "ikunlove.best") return "ikunloveApi";
-  if (host === "getgpt.pro") return "getgptApi";
-  if (host === "catfk.com") return "shopApi";
-  if (GENERIC_HTML_HOSTS.has(host)) return "genericHtml";
-  if (host.includes("burstpro")) return "dujiao";
-  return "browser";
+  return inferCollectorKindFromHost(host, host, "browser") || "browser";
 }
 
 function inferSubmittedSourceName(host: string, parsedTitle: string | null, shopToken: string | null): string {
@@ -1484,30 +1406,7 @@ function normalizeHostname(value: string): string {
 }
 
 function normalizeCollectorKind(value: unknown): CollectorKind | null {
-  if (typeof value !== "string") return null;
-  const normalized = value.trim();
-  if (
-    normalized === "auto" ||
-    normalized === "kami" ||
-    normalized === "dujiao" ||
-    normalized === "shopApi" ||
-    normalized === "xiaoheiwan" ||
-    normalized === "opensoraHtml" ||
-    normalized === "makerichHtml" ||
-    normalized === "beibeiHtml" ||
-    normalized === "ikunloveApi" ||
-    normalized === "getgptApi" ||
-    normalized === "publicProductsApi" ||
-    normalized === "shopUserProductsApi" ||
-    normalized === "unicornHtml" ||
-    normalized === "mooncakeCatalog" ||
-    normalized === "genericHtml" ||
-    normalized === "browser" ||
-    normalized === "unsupported"
-  ) {
-    return normalized;
-  }
-  return null;
+  return normalizeRegisteredCollectorKind(value);
 }
 
 function isRuntimeCollectionIssue(message: string): boolean {
