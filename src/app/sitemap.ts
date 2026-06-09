@@ -4,6 +4,7 @@ import { getApiModelDataset } from "@/lib/api-models-db";
 import { getExplorerData } from "@/lib/data";
 import { getOfficialPricePlanSummaries } from "@/lib/official-prices";
 import { platformPageConfigList } from "@/lib/platform-pages";
+import { shouldNoIndexProduct } from "@/lib/product-seo";
 
 const siteUrl = "https://priceai.cc";
 
@@ -107,12 +108,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  const productRoutes: MetadataRoute.Sitemap = data.products.map((product) => ({
-    url: `${siteUrl}/products/${product.slug}`,
-    lastModified: product.latestSeenAt ? new Date(product.latestSeenAt) : now,
-    changeFrequency: "hourly",
-    priority: product.inStockCount > 0 ? 0.8 : 0.55,
-  }));
+  const productRoutes: MetadataRoute.Sitemap = data.products
+    .filter((product) => !shouldNoIndexProduct(product))
+    .map((product) => ({
+      url: `${siteUrl}/products/${product.slug}`,
+      lastModified: product.latestSeenAt ? new Date(product.latestSeenAt) : now,
+      changeFrequency: "hourly",
+      priority: product.inStockCount > 0 ? 0.8 : 0.55,
+    }));
 
   const officialPriceRoutes: MetadataRoute.Sitemap = getOfficialPricePlanSummaries("all").map((product) => ({
     url: `${siteUrl}/official-prices/${product.id}`,
