@@ -29,7 +29,10 @@ vercel deploy --prod --yes
 
 ## GitHub Actions 定时采集
 
-仓库包含 `.github/workflows/collect-prices.yml`，默认每 30 分钟运行一次。
+仓库包含两条价格采集 workflow：
+
+- `.github/workflows/collect-prices.yml`：主采集任务，默认每 30 分钟运行一次，排除链动小铺渠道族和 `dujiao` 采集器。
+- `.github/workflows/collect-dujiao-prices.yml`：`dujiao` 专项采集任务，默认每 30 分钟运行一次，并与主采集错开 15 分钟，使用并发 2。
 
 需要配置 GitHub Actions secrets：
 
@@ -43,7 +46,19 @@ vercel deploy --prod --yes
 工作流会在 GitHub runner 中安装依赖，然后执行：
 
 ```bash
-npm run collect:prices -- --all --post --endpoint "$BASE_URL"
+npm run collect:prices -- --all --post --endpoint "$BASE_URL" --exclude-family liandong-shop --exclude-kind dujiao
+```
+
+`dujiao` 专项工作流执行：
+
+```bash
+npm run collect:prices -- --all --kind dujiao --concurrency 2 --post --endpoint "$BASE_URL"
+```
+
+查看最近采集性能和失败来源分组：
+
+```bash
+npm run collect:performance -- --hours 24 --limit 1500
 ```
 
 ## 云服务器定时采集

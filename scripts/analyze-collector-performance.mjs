@@ -54,6 +54,9 @@ function buildReport(crawlRuns, jobs, meta) {
   const failures = rows
     .filter((row) => row.status !== "success")
     .slice(0, 20);
+  const failureRows = rows.filter((row) => row.status !== "success");
+  const failureGroups = aggregateFailures(failureRows);
+  const problemSources = aggregateProblemSources(failureRows).slice(0, 20);
   const jobPerformance = jobs
     .filter((job) => job.result?.performance)
     .map((job) => ({
@@ -87,6 +90,8 @@ function buildReport(crawlRuns, jobs, meta) {
     byStatus,
     slowest,
     failures,
+    failureGroups,
+    problemSources,
     jobPerformance,
   };
 }
@@ -174,6 +179,12 @@ function printReport(report) {
   console.table(report.slowest.map(compactRunRow));
 
   if (report.failures.length) {
+    console.log("\nFailure groups");
+    console.table(report.failureGroups);
+
+    console.log("\nProblem sources");
+    console.table(report.problemSources);
+
     console.log("\nRecent failures");
     console.table(report.failures.map(compactRunRow));
   }
@@ -197,6 +208,148 @@ function compactRunRow(row) {
     ms: row.ms,
     startedAt: row.startedAt,
     message: row.message.slice(0, 80),
+  };
+}
+
+function aggregateFailures(rows) {
+  const map = new Map();
+
+  for (const row of rows) {
+    const category = classifyFailure(row);
+    const key = `${row.collector}:${category.key}`;
+    const entry = map.get(key) || {
+      collector: row.collector,
+      category: category.key,
+      label: category.label,
+      count: 0,
+      sources: new Set(),
+      latestAt: "",
+      action: category.action,
+    };
+
+    entry.count += 1;
+    if (row.sourceId) entry.sources.add(row.sourceId);
+    if (!entry.latestAt || String(row.startedAt || "") > entry.latestAt) entry.latestAt = row.startedAt || "";
+    map.set(key, entry);
+  }
+
+  return [...map.values()]
+    .map((entry) => ({
+      collector: entry.collector,
+      category: entry.category,
+      label: entry.label,
+      count: entry.count,
+      sourceCount: entry.sources.size,
+      latestAt: entry.latestAt,
+      action: entry.action,
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+function aggregateProblemSources(rows) {
+  const map = new Map();
+
+  for (const row of rows) {
+    const key = row.sourceId || row.source || "unknown";
+    const category = classifyFailure(row);
+    const entry = map.get(key) || {
+      sourceId: row.sourceId,
+      source: row.source,
+      collector: row.collector,
+      count: 0,
+      categories: new Map(),
+      latestAt: "",
+      latestMessage: "",
+    };
+
+    entry.count += 1;
+    entry.categories.set(category.key, (entry.categories.get(category.key) || 0) + 1);
+    if (!entry.latestAt || String(row.startedAt || "") > entry.latestAt) {
+      entry.latestAt = row.startedAt || "";
+      entry.latestMessage = row.message || "";
+    }
+    map.set(key, entry);
+  }
+
+  return [...map.values()]
+    .map((entry) => ({
+      sourceId: entry.sourceId,
+      source: entry.source.slice(0, 42),
+      collector: entry.collector,
+      failures: entry.count,
+      categories: [...entry.categories.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([key, count]) => `${key}:${count}`)
+        .join(", "),
+      latestAt: entry.latestAt,
+      latestMessage: entry.latestMessage.slice(0, 80),
+    }))
+    .sort((a, b) => b.failures - a.failures);
+}
+
+function classifyFailure(row) {
+  const text = `${row.status || ""} ${row.message || ""}`.toLowerCase();
+
+  if (text.includes("分批写入")) {
+    return {
+      key: "partial-batch",
+      label: "分批写入产生的 partial",
+      action: "检查分页/分批上限，通常不是解析器失败；优先确认是否所有批次都写入。",
+    };
+  }
+
+  if (text.includes("no shop token")) {
+    return {
+      key: "missing-shop-token",
+      label: "缺少店铺 token",
+      action: "补正确店铺入口，或从商品链接反查 /shop/<token> 后再采集。",
+    };
+  }
+
+  if (text.includes("风控") || text.includes("验证") || text.includes("challenge") || text.includes("captcha") || text.includes("waf")) {
+    return {
+      key: "waf-or-challenge",
+      label: "验证页或风控页",
+      action: "不要判缺货；降低频率、换合适节点，或进入待开发采集器/本机浏览器兜底。",
+    };
+  }
+
+  if (text.includes("采集结果为空") || text.includes("empty")) {
+    return {
+      key: "empty-result",
+      label: "采集结果为空",
+      action: "检查入口是否下架、页面结构是否变化，必要时重新试探采集器。",
+    };
+  }
+
+  if (text.includes("fetch failed") || text.includes("timeout") || text.includes("econnreset") || text.includes("etimedout")) {
+    return {
+      key: "network",
+      label: "网络或节点失败",
+      action: "复查采集节点连通性；国内风控站点优先放到国内节点。",
+    };
+  }
+
+  if (text.includes("unsupported collector")) {
+    return {
+      key: "unsupported-collector",
+      label: "未支持的采集器类型",
+      action: "修正来源 collector_kind，或新增对应解析器。",
+    };
+  }
+
+  if (/http\s*(4\d\d|5\d\d)|\b(4\d\d|5\d\d)\b/.test(text)) {
+    return {
+      key: "http-error",
+      label: "HTTP 错误",
+      action: "按状态码判断是入口失效、限流还是源站故障；连续失败后降频或停采。",
+    };
+  }
+
+  return {
+    key: "unknown",
+    label: "未分类失败",
+    action: "查看最近失败 message，补充分类规则或新增采集器修复。",
   };
 }
 

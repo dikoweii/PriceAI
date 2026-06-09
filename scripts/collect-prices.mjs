@@ -1657,6 +1657,10 @@ function hasTargetFilters(options = {}) {
       options.kinds ||
       options["collector-kind"] ||
       options["collector-kinds"] ||
+      options.excludeKind ||
+      options["exclude-kind"] ||
+      options.excludeKinds ||
+      options["exclude-kinds"] ||
       options.excludeFamily ||
       options["exclude-family"] ||
       options.excludeFamilies ||
@@ -1665,6 +1669,14 @@ function hasTargetFilters(options = {}) {
 }
 
 function shouldExcludeTarget(target, options = {}) {
+  const kinds = optionList(options.excludeKind || options["exclude-kind"] || options.excludeKinds || options["exclude-kinds"]);
+  if (
+    kinds.includes(String(target.kind || "").toLowerCase()) ||
+    kinds.includes(String(target.configuredKind || "").toLowerCase())
+  ) {
+    return true;
+  }
+
   const families = optionList(options.excludeFamily || options["exclude-family"] || options.excludeFamilies || options["exclude-families"]);
   if (families.includes("liandong-shop") && isLiandongShopTarget(target)) return true;
   return false;

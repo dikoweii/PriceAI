@@ -26,6 +26,18 @@ npm run collect:prices -- --list
 npm run collect:prices -- --all --post
 ```
 
+排除某一类采集器：
+
+```bash
+npm run collect:prices -- --all --post --exclude-kind dujiao
+```
+
+只采集某一类采集器，例如 `dujiao` 并发 2 试点：
+
+```bash
+npm run collect:prices -- --all --kind dujiao --concurrency 2 --post
+```
+
 采集单个来源并写入：
 
 ```bash
@@ -49,6 +61,22 @@ npm run collect:browser -- --url https://aisou.pro/ --password your-admin-passwo
 - `stockCount`：可选库存数量
 
 前台只展示 `有货` 和 `缺货`。采集失败、重试中、解析失败、待开发采集器等状态属于后台诊断信息。
+
+## 采集性能与失败分组
+
+查看最近采集性能、慢来源、失败来源和失败原因分组：
+
+```bash
+npm run collect:performance -- --hours 24 --limit 1500
+```
+
+输出中的 `Failure groups` 可用于判断后续处理方向：
+
+- `missing-shop-token`：补正确店铺入口或从商品链接反查店铺入口。
+- `waf-or-challenge`：不要直接判缺货，应降低频率、换节点或进入待开发采集器。
+- `empty-result`：检查入口是否下架或页面结构是否变化。
+- `network`：检查采集节点网络，国内风控站点优先放到国内节点。
+- `partial-batch`：优先确认分页和分批写入是否完整，通常不是解析器完全失败。
 
 ## 新增来源流程
 

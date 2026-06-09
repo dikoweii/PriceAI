@@ -1,19 +1,19 @@
-name: Collect Prices
+name: Collect Dujiao Prices
 
 on:
   schedule:
-    # 每 30 分钟跑一次（GitHub Actions cron 用 UTC，最小粒度 5 分钟，但官方建议 ≥ 10 分钟）
-    - cron: "*/30 * * * *"
+    # 与主采集任务错开 15 分钟，只跑 dujiao 来源并发 2。
+    - cron: "15,45 * * * *"
   workflow_dispatch: {}
 
 concurrency:
-  group: collect-prices
+  group: collect-dujiao-prices
   cancel-in-progress: false
 
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,15 +27,15 @@ jobs:
       - name: Install dependencies
         run: npm ci --omit=dev
 
-      - name: Collect prices in runner
+      - name: Collect dujiao prices in runner
         env:
           COLLECT_PRICES_URL: ${{ secrets.COLLECT_PRICES_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           ADMIN_PASSWORD: ${{ secrets.CRON_SECRET }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          PRICEAI_COLLECTOR_NODE_ID: github-actions
-          PRICEAI_COLLECTOR_NODE_NAME: GitHub Actions
+          PRICEAI_COLLECTOR_NODE_ID: github-actions-dujiao
+          PRICEAI_COLLECTOR_NODE_NAME: GitHub Actions Dujiao
           PRICEAI_COLLECTOR_NODE_TYPE: ci
           PRICEAI_COLLECTOR_NODE_RUNTIME: github-actions
           PRICEAI_COLLECTOR_NODE_REGION: github-hosted
@@ -61,4 +61,4 @@ jobs:
           NODE
           )
 
-          npm run collect:prices -- --all --post --endpoint "$BASE_URL" --exclude-family liandong-shop --exclude-kind dujiao
+          npm run collect:prices -- --all --kind dujiao --concurrency 2 --post --endpoint "$BASE_URL"
