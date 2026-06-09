@@ -149,6 +149,8 @@ async function runChannelPriceJob(sourceId) {
     force: true,
     concurrency: args.concurrency || args["concurrency"],
     "post-batch-size": args["post-batch-size"] || args.postBatchSize,
+    "flush-source-count": args["flush-source-count"] || args.flushSourceCount,
+    "flush-interval-ms": args["flush-interval-ms"] || args.flushIntervalMs,
     "page-delay-ms": args["page-delay-ms"] || args.pageDelayMs,
     retries: args.retries || args.retry,
     "collector-node-id": workerId,

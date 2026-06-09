@@ -50,6 +50,13 @@ vercel deploy --prod --yes
 npm run collect:prices -- --all --post --endpoint "$BASE_URL" --exclude-kind dujiao,shopApi
 ```
 
+渠道采集写回默认启用 flush 队列：成功来源每 `20` 个或每 `120` 秒合并写回一次；失败来源仍即时写入。需要微调时可在 workflow、cron 或服务器环境中增加：
+
+```bash
+PRICEAI_COLLECT_FLUSH_SOURCE_COUNT=20
+PRICEAI_COLLECT_FLUSH_INTERVAL_MS=120000
+```
+
 `dujiao` 专项工作流执行：
 
 ```bash

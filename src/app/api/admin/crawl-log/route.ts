@@ -27,7 +27,7 @@ const offerSchema = z.object({
   stockCount: z.number().int().nullable().optional(),
 });
 
-const schema = z.object({
+const crawlLogPayloadSchema = z.object({
   sourceId: z.string().min(1).optional(),
   sourceName: z.string().min(1),
   sourceUrl: z.string().url(),
@@ -38,6 +38,11 @@ const schema = z.object({
   details: z.record(z.string(), z.unknown()).optional(),
 });
 
+const batchSchema = z.object({
+  runs: z.array(crawlLogPayloadSchema).min(1).max(50),
+  batch: z.record(z.string(), z.unknown()).optional(),
+});
+
 export async function POST(request: Request) {
   try {
     requireAdminOrCronPassword(getAdminPasswordFromRequest(request));
@@ -45,72 +50,32 @@ export async function POST(request: Request) {
     const supabase = getSupabaseServerClient();
     if (!supabase) throw new Error("Supabase 尚未配置，无法保存采集结果。");
 
-    const payload = schema.parse(await request.json());
-    const startedAt = new Date().toISOString();
-    const source = await upsertSource({
-      id: payload.sourceId,
-      name: payload.sourceName,
-      entryUrl: payload.sourceUrl,
-      collectionMethod: payload.mode,
-      collectorKind: collectorKindFromDetails(payload.details),
-      notes: "由采集日志自动维护。",
-    });
-    const offers = payload.offers.map((offer) => ({
-      ...offer,
-      sourceId: offer.sourceId || payload.sourceId || source.id,
-    }));
-    const upsertResult = await upsertRawOffers(offers, { collectionMethod: payload.mode });
-    const successCount = upsertResult.receivedCount;
-    const finishedAt = new Date().toISOString();
-    const seenOfferIds = seenOfferIdsFromDetails(payload.details) || offers.map(rawOfferInputId);
-    const fullSnapshot = fullSnapshotFromDetails(payload.details, payload.status);
+    const rawBody = await request.json();
+    const isBatch = rawBody && typeof rawBody === "object" && Array.isArray(rawBody.runs);
+    const runs = isBatch ? batchSchema.parse(rawBody).runs : [crawlLogPayloadSchema.parse(rawBody)];
+    const results = [];
+    let shouldClearCache = false;
 
-    const sourceCollectionResult = await recordSourceCollectionResult({
-      sourceId: source.id,
-      status: payload.status,
-      checkedAt: finishedAt,
-      message: payload.message || null,
-      seenOfferIds,
-      fullSnapshot,
-    });
+    for (const run of runs) {
+      const result = await saveCrawlLogRun(supabase, run);
+      results.push(result);
+      shouldClearCache = shouldClearCache || result.shouldClearCache;
+    }
 
-    const { error } = await supabase.from("crawl_runs").insert({
-      id: stableId(payload.sourceName, payload.sourceUrl, startedAt),
-      source_id: source.id,
-      source_name: payload.sourceName,
-      mode: payload.mode,
-      status: payload.status,
-      started_at: startedAt,
-      finished_at: finishedAt,
-      success_count: successCount,
-      failure_count: Math.max(0, payload.offers.length - successCount),
-      message: payload.message || `采集到 ${successCount} 条报价，写入 ${upsertResult.writtenCount} 条。`,
-      details: {
-        ...(payload.details || {}),
-        writeStats: {
-          receivedCount: upsertResult.receivedCount,
-          writtenCount: upsertResult.writtenCount,
-          unchangedCount: upsertResult.unchangedCount,
-        },
-      },
-    });
-
-    if (error) throw error;
     await pruneOperationalLogs(supabase);
 
-    if (
-      payload.status !== "success" ||
-      upsertResult.writtenCount > 0 ||
-      sourceCollectionResult.changedOfferCount > 0
-    ) {
+    if (shouldClearCache) {
       clearPublicDataCache();
     }
 
+    const totals = aggregateResults(results);
     return Response.json({
       ok: true,
-      successCount,
-      writtenCount: upsertResult.writtenCount,
-      unchangedCount: upsertResult.unchangedCount,
+      successCount: totals.successCount,
+      writtenCount: totals.writtenCount,
+      unchangedCount: totals.unchangedCount,
+      runCount: results.length,
+      results: isBatch ? results.map(compactResult) : undefined,
     });
   } catch (error) {
     return Response.json(
@@ -118,6 +83,104 @@ export async function POST(request: Request) {
       { status: error instanceof z.ZodError ? 400 : 500 },
     );
   }
+}
+
+async function saveCrawlLogRun(
+  supabase: NonNullable<ReturnType<typeof getSupabaseServerClient>>,
+  payload: z.infer<typeof crawlLogPayloadSchema>,
+) {
+  const startedAt = new Date().toISOString();
+  const source = await upsertSource({
+    id: payload.sourceId,
+    name: payload.sourceName,
+    entryUrl: payload.sourceUrl,
+    collectionMethod: payload.mode,
+    collectorKind: collectorKindFromDetails(payload.details),
+    notes: "由采集日志自动维护。",
+  });
+  const offers = payload.offers.map((offer) => ({
+    ...offer,
+    sourceId: offer.sourceId || payload.sourceId || source.id,
+  }));
+  const upsertResult = await upsertRawOffers(offers, { collectionMethod: payload.mode });
+  const successCount = upsertResult.receivedCount;
+  const finishedAt = new Date().toISOString();
+  const seenOfferIds = seenOfferIdsFromDetails(payload.details) || offers.map(rawOfferInputId);
+  const fullSnapshot = fullSnapshotFromDetails(payload.details, payload.status);
+
+  const sourceCollectionResult = await recordSourceCollectionResult({
+    sourceId: source.id,
+    status: payload.status,
+    checkedAt: finishedAt,
+    message: payload.message || null,
+    seenOfferIds,
+    fullSnapshot,
+  });
+
+  const { error } = await supabase.from("crawl_runs").insert({
+    id: stableId(payload.sourceName, payload.sourceUrl, startedAt),
+    source_id: source.id,
+    source_name: payload.sourceName,
+    mode: payload.mode,
+    status: payload.status,
+    started_at: startedAt,
+    finished_at: finishedAt,
+    success_count: successCount,
+    failure_count: Math.max(0, payload.offers.length - successCount),
+    message: payload.message || `采集到 ${successCount} 条报价，写入 ${upsertResult.writtenCount} 条。`,
+    details: {
+      ...(payload.details || {}),
+      writeStats: {
+        receivedCount: upsertResult.receivedCount,
+        writtenCount: upsertResult.writtenCount,
+        unchangedCount: upsertResult.unchangedCount,
+      },
+    },
+  });
+
+  if (error) throw error;
+
+  return {
+    sourceId: source.id,
+    sourceName: source.name,
+    status: payload.status,
+    successCount,
+    writtenCount: upsertResult.writtenCount,
+    unchangedCount: upsertResult.unchangedCount,
+    shouldClearCache:
+      payload.status !== "success" ||
+      upsertResult.writtenCount > 0 ||
+      sourceCollectionResult.changedOfferCount > 0,
+  };
+}
+
+function aggregateResults(results: Array<{ successCount: number; writtenCount: number; unchangedCount: number }>) {
+  return results.reduce(
+    (totals, result) => ({
+      successCount: totals.successCount + result.successCount,
+      writtenCount: totals.writtenCount + result.writtenCount,
+      unchangedCount: totals.unchangedCount + result.unchangedCount,
+    }),
+    { successCount: 0, writtenCount: 0, unchangedCount: 0 },
+  );
+}
+
+function compactResult(result: {
+  sourceId: string;
+  sourceName: string;
+  status: string;
+  successCount: number;
+  writtenCount: number;
+  unchangedCount: number;
+}) {
+  return {
+    sourceId: result.sourceId,
+    sourceName: result.sourceName,
+    status: result.status,
+    successCount: result.successCount,
+    writtenCount: result.writtenCount,
+    unchangedCount: result.unchangedCount,
+  };
 }
 
 function collectorKindFromDetails(details: Record<string, unknown> | undefined) {

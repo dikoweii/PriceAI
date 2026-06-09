@@ -17,6 +17,8 @@ const DEFAULT_LIANDONG_SHOP_BULK_DELAY_MS = 15_000;
 const DEFAULT_LIANDONG_SHOP_BREAKER_MINUTES = 30;
 const DEFAULT_PAGE_DELAY_MS = 300;
 const DEFAULT_CONCURRENCY = 1;
+const DEFAULT_FLUSH_SOURCE_COUNT = 20;
+const DEFAULT_FLUSH_INTERVAL_MS = 120_000;
 const AUTO_DETECT_COLLECTOR_KINDS = [
   "dujiao",
   "kami",
@@ -39,6 +41,7 @@ export async function runPriceCollection(options = {}) {
   const logger = options.silent ? null : console;
   const lockOwner = collectionLockOwner(options);
   const familyState = options.collectionFamilyState || createCollectionFamilyState(options);
+  const writeQueue = options.post ? createCrawlLogWriteQueue(options, logger) : null;
 
   if (!selectedTargets.length) {
     throw new Error("No matching supported sources. Use --list to inspect available collectors.");
@@ -46,17 +49,24 @@ export async function runPriceCollection(options = {}) {
 
   const groups = targetGroupsForCollection(selectedTargets);
   const concurrency = concurrencyFor(options);
-  const summary = (await runWithConcurrency(
-    groups,
-    concurrency,
-    async (group) => {
-      const results = [];
-      for (const target of group.targets) {
-        results.push(await collectOneTarget(target, options, logger, lockOwner, familyState));
-      }
-      return results;
-    },
-  )).flat();
+  let summary;
+  try {
+    summary = (await runWithConcurrency(
+      groups,
+      concurrency,
+      async (group) => {
+        const results = [];
+        for (const target of group.targets) {
+          results.push(await collectOneTarget(target, options, logger, lockOwner, familyState, writeQueue));
+        }
+        return results;
+      },
+    )).flat();
+  } finally {
+    if (writeQueue) await writeQueue.flush("final");
+  }
+
+  if (writeQueue) writeQueue.throwIfFailed();
   const finishedAt = new Date().toISOString();
   const performance = buildCollectionPerformanceReport({
     summary,
@@ -81,7 +91,7 @@ export async function runPriceCollection(options = {}) {
   };
 }
 
-async function collectOneTarget(target, options, logger, lockOwner, familyState) {
+async function collectOneTarget(target, options, logger, lockOwner, familyState, writeQueue = null) {
   const startedAt = Date.now();
   const skipped = (message) => ({
     sourceId: target.sourceId,
@@ -134,13 +144,17 @@ async function collectOneTarget(target, options, logger, lockOwner, familyState)
       const posted = await postCrawlLogBatched(target, offers, status, message, options, {
         attempts: collection.attempts,
         maxAttempts: collection.maxAttempts,
-      });
-      logger?.log(
-        `Posted ${posted.successCount} offers` +
-          (posted.writtenCount !== undefined
-            ? `, wrote ${posted.writtenCount}, unchanged ${posted.unchangedCount || 0}.`
-            : "."),
-      );
+      }, writeQueue);
+      if (posted.queued) {
+        logger?.log(`Queued ${posted.successCount} offers for batched write.`);
+      } else {
+        logger?.log(
+          `Posted ${posted.successCount} offers` +
+            (posted.writtenCount !== undefined
+              ? `, wrote ${posted.writtenCount}, unchanged ${posted.unchangedCount || 0}.`
+              : "."),
+        );
+      }
     }
 
     recordCollectionFamilyResult(target, familyState, { status, message });
@@ -1307,70 +1321,40 @@ function makeOffer(target, input) {
   };
 }
 
-async function postCrawlLog(target, offers, status, message, options = {}, details = {}) {
-  const endpoint =
-    options.endpoint ||
-    process.env.CRON_PUBLIC_BASE_URL ||
-    env.CRON_PUBLIC_BASE_URL ||
-    "http://localhost:3000";
-  const password =
-    options.password ||
-    process.env.ADMIN_PASSWORD ||
-    env.ADMIN_PASSWORD ||
-    process.env.CRON_SECRET ||
-    env.CRON_SECRET;
-  if (!password) {
-    throw new Error("写回采集结果需要 ADMIN_PASSWORD 或 CRON_SECRET。");
-  }
-  const response = await fetch(`${endpoint.replace(/\/$/, "")}/api/admin/crawl-log`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-admin-password": password,
+function crawlLogPayloadFor(target, offers, status, message, options = {}, details = {}) {
+  return {
+    sourceId: target.sourceId,
+    sourceName: target.sourceName,
+    sourceUrl: target.sourceUrl,
+    mode: "http",
+    status,
+    message,
+    offers,
+    details: {
+      collectorNode: collectorNodeDetails(options),
+      collector: target.kind,
+      ...details,
     },
-    body: JSON.stringify({
-      sourceId: target.sourceId,
-      sourceName: target.sourceName,
-      sourceUrl: target.sourceUrl,
-      mode: "http",
-      status,
-      message,
-      offers,
-      details: {
-        collectorNode: collectorNodeDetails(options),
-        collector: target.kind,
-        ...details,
-      },
-    }),
-  });
-
-  const payload = await response.json().catch(() => null);
-  if (!response.ok || !payload?.ok) {
-    throw new Error(payload?.message || `Post failed with HTTP ${response.status}`);
-  }
-
-  return payload;
+  };
 }
 
-async function postCrawlLogBatched(target, offers, status, message, options = {}, details = {}) {
+function crawlLogPayloadsFor(target, offers, status, message, options = {}, details = {}) {
   if (status !== "success" || offers.length <= postBatchSizeFor(options)) {
-    return postCrawlLog(target, offers, status, message, options, {
-      ...details,
-      fullSnapshot: status === "success",
-      seenOfferIds: status === "success" ? offerIdsForSnapshot(offers) : undefined,
-    });
+    return [
+      crawlLogPayloadFor(target, offers, status, message, options, {
+        ...details,
+        fullSnapshot: status === "success",
+        seenOfferIds: status === "success" ? offerIdsForSnapshot(offers) : undefined,
+      }),
+    ];
   }
 
-  let successCount = 0;
-  let writtenCount = 0;
-  let unchangedCount = 0;
   const batches = chunks(offers, postBatchSizeFor(options));
   const seenOfferIds = offerIdsForSnapshot(offers);
 
-  for (let index = 0; index < batches.length; index += 1) {
-    const batch = batches[index];
+  return batches.map((batch, index) => {
     const isLast = index === batches.length - 1;
-    const posted = await postCrawlLog(
+    return crawlLogPayloadFor(
       target,
       batch,
       isLast ? "success" : "partial",
@@ -1385,6 +1369,95 @@ async function postCrawlLogBatched(target, offers, status, message, options = {}
         seenOfferIds: isLast ? seenOfferIds : undefined,
       },
     );
+  });
+}
+
+function crawlLogPostConfig(options = {}) {
+  const endpoint =
+    options.endpoint ||
+    process.env.CRON_PUBLIC_BASE_URL ||
+    env.CRON_PUBLIC_BASE_URL ||
+    "http://localhost:3000";
+  const password =
+    options.password ||
+    process.env.ADMIN_PASSWORD ||
+    env.ADMIN_PASSWORD ||
+    process.env.CRON_SECRET ||
+    env.CRON_SECRET;
+  if (!password) {
+    throw new Error("写回采集结果需要 ADMIN_PASSWORD 或 CRON_SECRET。");
+  }
+
+  return {
+    endpoint: endpoint.replace(/\/$/, ""),
+    password,
+  };
+}
+
+async function postCrawlLogPayload(payload, options = {}) {
+  const config = crawlLogPostConfig(options);
+  const response = await fetch(`${config.endpoint}/api/admin/crawl-log`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-password": config.password,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const body = await response.json().catch(() => null);
+  if (!response.ok || !body?.ok) {
+    throw new Error(body?.message || `Post failed with HTTP ${response.status}`);
+  }
+
+  return body;
+}
+
+async function postCrawlLogPayloadBatch(runs, options = {}, batchDetails = {}) {
+  if (runs.length === 1) return postCrawlLogPayload(runs[0], options);
+
+  const config = crawlLogPostConfig(options);
+  const response = await fetch(`${config.endpoint}/api/admin/crawl-log`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-password": config.password,
+    },
+    body: JSON.stringify({
+      runs,
+      batch: {
+        sourceCount: runs.length,
+        ...batchDetails,
+      },
+    }),
+  });
+
+  const body = await response.json().catch(() => null);
+  if (!response.ok || !body?.ok) {
+    throw new Error(body?.message || `Post failed with HTTP ${response.status}`);
+  }
+
+  return body;
+}
+
+async function postCrawlLog(target, offers, status, message, options = {}, details = {}) {
+  return postCrawlLogPayload(crawlLogPayloadFor(target, offers, status, message, options, details), options);
+}
+
+async function postCrawlLogBatched(target, offers, status, message, options = {}, details = {}, writeQueue = null) {
+  const runs = crawlLogPayloadsFor(target, offers, status, message, options, details);
+
+  if (writeQueue && status === "success") {
+    writeQueue.enqueue(runs, { sourceId: target.sourceId, sourceName: target.sourceName });
+    return { ok: true, queued: true, successCount: offers.length };
+  }
+
+  let successCount = 0;
+  let writtenCount = 0;
+  let unchangedCount = 0;
+
+  for (const run of runs) {
+    const posted = await postCrawlLogPayload(run, options);
     successCount += Number(posted.successCount || 0);
     writtenCount += Number(posted.writtenCount || 0);
     unchangedCount += Number(posted.unchangedCount || 0);
@@ -1393,10 +1466,141 @@ async function postCrawlLogBatched(target, offers, status, message, options = {}
   return { ok: true, successCount, writtenCount, unchangedCount };
 }
 
+function createCrawlLogWriteQueue(options = {}, logger = null) {
+  const flushSourceCount = flushSourceCountFor(options);
+  const flushIntervalMs = flushIntervalMsFor(options);
+  const maxRunsPerRequest = 50;
+  let pendingRuns = [];
+  let pendingSourceCount = 0;
+  let firstQueuedAt = 0;
+  let timer = null;
+  let flushChain = Promise.resolve();
+  let lastError = null;
+
+  const clearTimer = () => {
+    if (!timer) return;
+    clearTimeout(timer);
+    timer = null;
+  };
+
+  const scheduleTimer = () => {
+    if (timer || flushIntervalMs <= 0 || !pendingRuns.length) return;
+    timer = setTimeout(() => {
+      void flush("interval").catch((error) => {
+        lastError = error;
+        logger?.error(`Failed to flush crawl log queue: ${errorMessage(error)}`);
+      });
+    }, flushIntervalMs);
+    timer.unref?.();
+  };
+
+  const flushNow = async (reason = "manual") => {
+    clearTimer();
+    if (!pendingRuns.length) return { ok: true, runCount: 0, successCount: 0, writtenCount: 0, unchangedCount: 0 };
+
+    const runs = pendingRuns;
+    const sourceCount = pendingSourceCount;
+    const queuedAt = firstQueuedAt;
+    pendingRuns = [];
+    pendingSourceCount = 0;
+    firstQueuedAt = 0;
+
+    let successCount = 0;
+    let writtenCount = 0;
+    let unchangedCount = 0;
+    let requestCount = 0;
+
+    try {
+      for (const batch of chunks(runs, maxRunsPerRequest)) {
+        const posted = await postCrawlLogPayloadBatch(batch, options, {
+          reason,
+          sourceCount,
+          runCount: runs.length,
+          flushSourceCount,
+          flushIntervalMs,
+        });
+        requestCount++;
+        successCount += Number(posted.successCount || 0);
+        writtenCount += Number(posted.writtenCount || 0);
+        unchangedCount += Number(posted.unchangedCount || 0);
+      }
+    } catch (error) {
+      pendingRuns = [...runs, ...pendingRuns];
+      pendingSourceCount += sourceCount;
+      firstQueuedAt = firstQueuedAt || queuedAt || Date.now();
+      scheduleTimer();
+      throw error;
+    }
+
+    logger?.log(
+      `Flushed ${runs.length} crawl log run(s) from ${sourceCount} source(s) via ${requestCount} request(s).`,
+    );
+
+    return { ok: true, runCount: runs.length, successCount, writtenCount, unchangedCount };
+  };
+
+  const flush = (reason = "manual") => {
+    const operation = flushChain.then(() => flushNow(reason));
+    flushChain = operation.catch(() => {});
+    return operation;
+  };
+
+  return {
+    enqueue(runs, source = {}) {
+      const items = Array.isArray(runs) ? runs.filter(Boolean) : [];
+      if (!items.length) return;
+
+      pendingRuns.push(...items);
+      pendingSourceCount++;
+      if (!firstQueuedAt) firstQueuedAt = Date.now();
+      scheduleTimer();
+
+      const isCountReady = pendingSourceCount >= flushSourceCount;
+      const isIntervalReady = flushIntervalMs > 0 && Date.now() - firstQueuedAt >= flushIntervalMs;
+      if (isCountReady || isIntervalReady) {
+        void flush(isCountReady ? "source-count" : "interval").catch((error) => {
+          lastError = error;
+          logger?.error(
+            `Failed to flush crawl log queue after ${source.sourceName || source.sourceId || "source"}: ${errorMessage(error)}`,
+          );
+        });
+      }
+    },
+    flush,
+    throwIfFailed() {
+      if (lastError) throw lastError;
+    },
+  };
+}
+
 function postBatchSizeFor(options = {}) {
   const value = Number(options.postBatchSize || options["post-batch-size"] || 200);
   if (!Number.isFinite(value)) return 200;
   return Math.max(50, Math.min(Math.trunc(value), 500));
+}
+
+function flushSourceCountFor(options = {}) {
+  const value = Number(
+    options.flushSourceCount ||
+      options["flush-source-count"] ||
+      process.env.PRICEAI_COLLECT_FLUSH_SOURCE_COUNT ||
+      env.PRICEAI_COLLECT_FLUSH_SOURCE_COUNT ||
+      DEFAULT_FLUSH_SOURCE_COUNT,
+  );
+  if (!Number.isFinite(value)) return DEFAULT_FLUSH_SOURCE_COUNT;
+  return Math.max(1, Math.min(Math.trunc(value), 50));
+}
+
+function flushIntervalMsFor(options = {}) {
+  const value = Number(
+    options.flushIntervalMs ||
+      options["flush-interval-ms"] ||
+      process.env.PRICEAI_COLLECT_FLUSH_INTERVAL_MS ||
+      env.PRICEAI_COLLECT_FLUSH_INTERVAL_MS ||
+      DEFAULT_FLUSH_INTERVAL_MS,
+  );
+  if (!Number.isFinite(value)) return DEFAULT_FLUSH_INTERVAL_MS;
+  return Math.max(5_000, Math.min(Math.trunc(value), 10 * 60_000));
 }
 
 function collectorNodeDetails(options = {}) {

@@ -26,6 +26,26 @@ npm run collect:prices -- --list
 npm run collect:prices -- --all --post
 ```
 
+默认写入策略：
+
+- 成功采集的来源先进入写入队列，每 `20` 个来源 flush 一次，或每 `120` 秒 flush 一次，哪个先到用哪个。
+- 采集失败的来源仍然立即写入失败日志，方便后台及时看到错误原因。
+- 单个来源报价过多时，仍会按 `--post-batch-size` 拆成多段写入，并保留最后一段的完整快照语义。
+- 进程结束前会强制 final flush，避免尾批成功数据滞留在本地。
+
+可通过参数调整：
+
+```bash
+npm run collect:prices -- --all --post --flush-source-count 20 --flush-interval-ms 120000
+```
+
+对应环境变量：
+
+```bash
+PRICEAI_COLLECT_FLUSH_SOURCE_COUNT=20
+PRICEAI_COLLECT_FLUSH_INTERVAL_MS=120000
+```
+
 排除某一类采集器：
 
 ```bash
