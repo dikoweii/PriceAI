@@ -151,7 +151,7 @@ async function collectOneTarget(target, options, logger, lockOwner, familyState,
         logger?.log(
           `Posted ${posted.successCount} offers` +
             (posted.writtenCount !== undefined
-              ? `, wrote ${posted.writtenCount}, unchanged ${posted.unchangedCount || 0}.`
+              ? `, wrote ${posted.writtenCount}, refreshed ${posted.refreshedCount || 0}, unchanged ${posted.unchangedCount || 0}.`
               : "."),
         );
       }
@@ -1531,15 +1531,17 @@ async function postCrawlLogBatched(target, offers, status, message, options = {}
   let successCount = 0;
   let writtenCount = 0;
   let unchangedCount = 0;
+  let refreshedCount = 0;
 
   for (const run of runs) {
     const posted = await postCrawlLogPayload(run, options);
     successCount += Number(posted.successCount || 0);
     writtenCount += Number(posted.writtenCount || 0);
     unchangedCount += Number(posted.unchangedCount || 0);
+    refreshedCount += Number(posted.refreshedCount || 0);
   }
 
-  return { ok: true, successCount, writtenCount, unchangedCount };
+  return { ok: true, successCount, writtenCount, unchangedCount, refreshedCount };
 }
 
 function createCrawlLogWriteQueue(options = {}, logger = null) {
@@ -1572,7 +1574,7 @@ function createCrawlLogWriteQueue(options = {}, logger = null) {
 
   const flushNow = async (reason = "manual") => {
     clearTimer();
-    if (!pendingRuns.length) return { ok: true, runCount: 0, successCount: 0, writtenCount: 0, unchangedCount: 0 };
+    if (!pendingRuns.length) return { ok: true, runCount: 0, successCount: 0, writtenCount: 0, unchangedCount: 0, refreshedCount: 0 };
 
     const runs = pendingRuns;
     const sourceCount = pendingSourceCount;
@@ -1584,6 +1586,7 @@ function createCrawlLogWriteQueue(options = {}, logger = null) {
     let successCount = 0;
     let writtenCount = 0;
     let unchangedCount = 0;
+    let refreshedCount = 0;
     let requestCount = 0;
 
     try {
@@ -1599,6 +1602,7 @@ function createCrawlLogWriteQueue(options = {}, logger = null) {
         successCount += Number(posted.successCount || 0);
         writtenCount += Number(posted.writtenCount || 0);
         unchangedCount += Number(posted.unchangedCount || 0);
+        refreshedCount += Number(posted.refreshedCount || 0);
       }
     } catch (error) {
       pendingRuns = [...runs, ...pendingRuns];
@@ -1612,7 +1616,7 @@ function createCrawlLogWriteQueue(options = {}, logger = null) {
       `Flushed ${runs.length} crawl log run(s) from ${sourceCount} source(s) via ${requestCount} request(s).`,
     );
 
-    return { ok: true, runCount: runs.length, successCount, writtenCount, unchangedCount };
+    return { ok: true, runCount: runs.length, successCount, writtenCount, unchangedCount, refreshedCount };
   };
 
   const flush = (reason = "manual") => {

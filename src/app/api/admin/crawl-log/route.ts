@@ -74,6 +74,7 @@ export async function POST(request: Request) {
       successCount: totals.successCount,
       writtenCount: totals.writtenCount,
       unchangedCount: totals.unchangedCount,
+      refreshedCount: totals.refreshedCount,
       runCount: results.length,
       results: isBatch ? results.map(compactResult) : undefined,
     });
@@ -127,13 +128,14 @@ async function saveCrawlLogRun(
     finished_at: finishedAt,
     success_count: successCount,
     failure_count: Math.max(0, payload.offers.length - successCount),
-    message: payload.message || `采集到 ${successCount} 条报价，写入 ${upsertResult.writtenCount} 条。`,
+    message: payload.message || `采集到 ${successCount} 条报价，写入 ${upsertResult.writtenCount} 条，刷新 ${upsertResult.refreshedCount} 条。`,
     details: {
       ...(payload.details || {}),
       writeStats: {
         receivedCount: upsertResult.receivedCount,
         writtenCount: upsertResult.writtenCount,
         unchangedCount: upsertResult.unchangedCount,
+        refreshedCount: upsertResult.refreshedCount,
       },
     },
   });
@@ -147,21 +149,24 @@ async function saveCrawlLogRun(
     successCount,
     writtenCount: upsertResult.writtenCount,
     unchangedCount: upsertResult.unchangedCount,
+    refreshedCount: upsertResult.refreshedCount,
     shouldClearCache:
       payload.status !== "success" ||
       upsertResult.writtenCount > 0 ||
+      upsertResult.refreshedCount > 0 ||
       sourceCollectionResult.changedOfferCount > 0,
   };
 }
 
-function aggregateResults(results: Array<{ successCount: number; writtenCount: number; unchangedCount: number }>) {
+function aggregateResults(results: Array<{ successCount: number; writtenCount: number; unchangedCount: number; refreshedCount: number }>) {
   return results.reduce(
     (totals, result) => ({
       successCount: totals.successCount + result.successCount,
       writtenCount: totals.writtenCount + result.writtenCount,
       unchangedCount: totals.unchangedCount + result.unchangedCount,
+      refreshedCount: totals.refreshedCount + (result.refreshedCount || 0),
     }),
-    { successCount: 0, writtenCount: 0, unchangedCount: 0 },
+    { successCount: 0, writtenCount: 0, unchangedCount: 0, refreshedCount: 0 },
   );
 }
 
@@ -172,6 +177,7 @@ function compactResult(result: {
   successCount: number;
   writtenCount: number;
   unchangedCount: number;
+  refreshedCount?: number;
 }) {
   return {
     sourceId: result.sourceId,
@@ -180,6 +186,7 @@ function compactResult(result: {
     successCount: result.successCount,
     writtenCount: result.writtenCount,
     unchangedCount: result.unchangedCount,
+    refreshedCount: result.refreshedCount || 0,
   };
 }
 

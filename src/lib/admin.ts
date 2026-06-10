@@ -39,6 +39,7 @@ export type RawOfferUpsertResult = {
   receivedCount: number;
   writtenCount: number;
   unchangedCount: number;
+  refreshedCount: number;
 };
 
 let canonicalProductsEnsurePromise: Promise<void> | null = null;
@@ -345,6 +346,7 @@ export async function upsertRawOffers(
   const rows = [];
   const collectionMethod = options.collectionMethod || "browser";
   const sourceCache = new Map<string, Source>();
+  const checkedAt = new Date().toISOString();
 
   for (const offer of offers) {
     const sourceKey = offer.sourceId || `${offer.sourceName}|${offer.sourceUrl}|${collectionMethod}`;
@@ -364,42 +366,41 @@ export async function upsertRawOffers(
       sourceName: source.name,
       sourceStoreName: offer.sourceStoreName || source.name,
     };
-    const now = new Date().toISOString();
     const status = normalizeStatus(offer.status || "");
     const tags = parseTags(offer.tags || "");
     const canonical = classifyOffer(offer.sourceTitle, { tags, price: offer.price ?? null });
-    const trustFields = freshnessFields({ method: collectionMethod, status, verifiedAt: now });
+    const trustFields = freshnessFields({ method: collectionMethod, status, verifiedAt: checkedAt });
 
-    rows.push(
-      toRawOfferRow({
-        id: rawOfferInputId(normalizedOffer),
-        sourceId: source.id,
-        sourceName: source.name,
-        sourceStoreName: normalizedOffer.sourceStoreName,
-        sourceTitle: offer.sourceTitle,
-        price: offer.price ?? null,
-        currency: offer.currency || "CNY",
-        status,
-        url: offer.url,
-        tags,
-        stockCount: offer.stockCount ?? null,
-        hidden: false,
-        canonicalProductId: canonical.id,
-        categorySlug: canonical.platform,
-        capturedAt: now,
-        sourceUpdatedAt: now,
-        lastSeenAt: now,
-        verifiedAt: now,
-        expiresAt: trustFields.expires_at,
-        sourcePriority: trustFields.source_priority,
-        confidence: trustFields.confidence,
-        effectiveStatus: trustFields.effective_status,
-        freshnessStatus: trustFields.freshness_status,
-      }),
-    );
+    const row = toRawOfferRow({
+      id: rawOfferInputId(normalizedOffer),
+      sourceId: source.id,
+      sourceName: source.name,
+      sourceStoreName: normalizedOffer.sourceStoreName,
+      sourceTitle: offer.sourceTitle,
+      price: offer.price ?? null,
+      currency: offer.currency || "CNY",
+      status,
+      url: offer.url,
+      tags,
+      stockCount: offer.stockCount ?? null,
+      hidden: false,
+      canonicalProductId: canonical.id,
+      categorySlug: canonical.platform,
+      capturedAt: checkedAt,
+      sourceUpdatedAt: checkedAt,
+      lastSeenAt: checkedAt,
+      verifiedAt: checkedAt,
+      expiresAt: trustFields.expires_at,
+      sourcePriority: trustFields.source_priority,
+      confidence: trustFields.confidence,
+      effectiveStatus: trustFields.effective_status,
+      freshnessStatus: trustFields.freshness_status,
+    });
+    row.updated_at = checkedAt;
+    rows.push(row);
   }
 
-  if (!rows.length) return { receivedCount: 0, writtenCount: 0, unchangedCount: 0 };
+  if (!rows.length) return { receivedCount: 0, writtenCount: 0, unchangedCount: 0, refreshedCount: 0 };
 
   const manualHiddenById = await getManualHiddenOffersById(rows.map((row) => String(row.id)));
   for (const row of rows) {
@@ -411,23 +412,29 @@ export async function upsertRawOffers(
   }
 
   const existingById = await getExistingOfferRowsById(rows.map((row) => String(row.id)));
-  const changedRows = rows.filter((row) => !isRawOfferRowUnchanged(row, existingById.get(String(row.id))));
+  const changedRows = [];
+  const unchangedRows = [];
 
-  if (!changedRows.length) {
-    return {
-      receivedCount: rows.length,
-      writtenCount: 0,
-      unchangedCount: rows.length,
-    };
+  for (const row of rows) {
+    if (isRawOfferRowUnchanged(row, existingById.get(String(row.id)))) {
+      unchangedRows.push(row);
+    } else {
+      changedRows.push(row);
+    }
   }
 
-  const { error } = await supabase.from("raw_offers").upsert(changedRows);
-  if (error) throw error;
+  if (changedRows.length) {
+    const { error } = await supabase.from("raw_offers").upsert(changedRows);
+    if (error) throw error;
+  }
+
+  const refreshedCount = unchangedRows.length ? await refreshSeenRawOfferRows(unchangedRows) : 0;
 
   return {
     receivedCount: rows.length,
     writtenCount: changedRows.length,
-    unchangedCount: rows.length - changedRows.length,
+    unchangedCount: unchangedRows.length,
+    refreshedCount,
   };
 }
 
@@ -471,6 +478,51 @@ function isRawOfferRowUnchanged(next: Record<string, unknown>, existing?: Record
   ];
 
   return keys.every((key) => comparableValue(next[key]) === comparableValue(existing[key]));
+}
+
+async function refreshSeenRawOfferRows(rows: Array<Record<string, unknown>>): Promise<number> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase || !rows.length) return 0;
+
+  const groups = new Map<string, { ids: string[]; update: Record<string, unknown> }>();
+  for (const row of rows) {
+    const update = compactUndefined({
+      captured_at: row.captured_at,
+      source_updated_at: row.source_updated_at,
+      last_seen_at: row.last_seen_at,
+      verified_at: row.verified_at,
+      expires_at: row.expires_at,
+      source_status: row.source_status,
+      effective_status: row.effective_status,
+      freshness_status: row.freshness_status,
+      source_priority: row.source_priority,
+      confidence: row.confidence,
+      updated_at: row.updated_at,
+    });
+    const key = JSON.stringify(update);
+    const current = groups.get(key) || { ids: [], update };
+    current.ids.push(String(row.id));
+    groups.set(key, current);
+  }
+
+  let refreshedCount = 0;
+  for (const group of groups.values()) {
+    for (const ids of chunks(group.ids, 100)) {
+      const { count, error } = await supabase
+        .from("raw_offers")
+        .update(group.update, { count: "exact" })
+        .in("id", ids);
+
+      if (error) throw error;
+      refreshedCount += count || 0;
+    }
+  }
+
+  return refreshedCount;
+}
+
+function compactUndefined(input: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
 }
 
 function comparableValue(value: unknown): string {
@@ -2034,7 +2086,7 @@ export async function approveSubmission(
 
   const importedOfferResult = importedOffers.length
     ? await upsertRawOffers(importedOffers, { collectionMethod: source.collectionMethod === "manual" ? "http" : source.collectionMethod })
-    : { receivedCount: 0, writtenCount: 0, unchangedCount: 0 };
+    : { receivedCount: 0, writtenCount: 0, unchangedCount: 0, refreshedCount: 0 };
   const importedOfferCount = importedOfferResult.receivedCount;
 
   const reviewedAt = new Date().toISOString();
@@ -2049,7 +2101,7 @@ export async function approveSubmission(
       finished_at: reviewedAt,
       success_count: importedOfferCount,
       failure_count: 0,
-      message: `审核通过时从试采集结果读取 ${importedOfferCount} 条报价，写入 ${importedOfferResult.writtenCount} 条。`,
+      message: `审核通过时从试采集结果读取 ${importedOfferCount} 条报价，写入 ${importedOfferResult.writtenCount} 条，刷新 ${importedOfferResult.refreshedCount} 条。`,
       details: {
         review_action: "submission_approve",
         submission_id: submission.id,
@@ -2059,6 +2111,7 @@ export async function approveSubmission(
           receivedCount: importedOfferResult.receivedCount,
           writtenCount: importedOfferResult.writtenCount,
           unchangedCount: importedOfferResult.unchangedCount,
+          refreshedCount: importedOfferResult.refreshedCount,
         },
       },
     });
