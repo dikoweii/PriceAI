@@ -82,7 +82,7 @@ export default async function ApiProviderDetailPage({
   return (
     <main className="min-h-screen bg-[#f9f9f9] text-[#2d3435]">
       <div className="sticky top-0 z-40 border-b border-[#dfe4e5] bg-[#f9f9f9]/95 shadow-[0_10px_24px_rgba(45,52,53,0.035)] backdrop-blur-xl">
-        <SiteHeader maxWidthClassName="max-w-[1300px]" logoCompact activeSection="api" />
+        <SiteHeader logoCompact activeSection="api" compactActionLabelFrom="2xl" />
       </div>
 
       <div className="mx-auto max-w-[1300px] px-4 py-8 sm:px-6 lg:px-8 lg:py-12">

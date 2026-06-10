@@ -13,7 +13,7 @@ const RETURN_HOME_INTENT_TTL_MS = 30 * 60 * 1000;
 export function ProductDetailHeader() {
   return (
     <div className="sticky top-0 z-40 border-b border-[#dfe4e5] bg-[#f9f9f9]/95 shadow-[0_10px_24px_rgba(45,52,53,0.035)] backdrop-blur-xl">
-      <SiteHeader maxWidthClassName="max-w-[1300px]" logoCompact activeSection="channels" />
+      <SiteHeader logoCompact activeSection="channels" compactActionLabelFrom="2xl" />
     </div>
   );
 }

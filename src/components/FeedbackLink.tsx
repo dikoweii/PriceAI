@@ -26,9 +26,26 @@ const feedbackTypes: Array<{ value: FeedbackType; label: string }> = [
   { value: "other", label: "其他" },
 ];
 
-export function FeedbackLink({ compact = false }: { compact?: boolean }) {
+type HeaderActionLabelFrom = "sm" | "2xl";
+
+function getLabelClassName(compact: boolean, labelFrom: HeaderActionLabelFrom) {
+  if (!compact) return undefined;
+  return labelFrom === "2xl" ? "hidden 2xl:inline" : "hidden sm:inline";
+}
+
+function getExternalIconClassName(labelFrom: HeaderActionLabelFrom) {
+  return labelFrom === "2xl" ? "hidden 2xl:block" : "hidden sm:block";
+}
+
+export function FeedbackLink({
+  compact = false,
+  labelFrom = "sm",
+}: {
+  compact?: boolean;
+  labelFrom?: HeaderActionLabelFrom;
+}) {
   const [open, setOpen] = useState(false);
-  const labelClassName = compact ? "hidden sm:inline" : undefined;
+  const labelClassName = getLabelClassName(compact, labelFrom);
 
   return (
     <>
@@ -48,7 +65,13 @@ export function FeedbackLink({ compact = false }: { compact?: boolean }) {
   );
 }
 
-export function GitHubLink({ compact = false }: { compact?: boolean }) {
+export function GitHubLink({
+  compact = false,
+  labelFrom = "sm",
+}: {
+  compact?: boolean;
+  labelFrom?: HeaderActionLabelFrom;
+}) {
   return (
     <a
       href={githubUrl}
@@ -67,13 +90,19 @@ export function GitHubLink({ compact = false }: { compact?: boolean }) {
         height={20}
         className="h-5 w-5 shrink-0 object-contain"
       />
-      <span className={compact ? "hidden sm:inline" : undefined}>GitHub 开源</span>
-      <ExternalLink size={14} className="hidden sm:block" />
+      <span className={getLabelClassName(compact, labelFrom)}>GitHub 开源</span>
+      <ExternalLink size={14} className={getExternalIconClassName(labelFrom)} />
     </a>
   );
 }
 
-export function TelegramLink({ compact = false }: { compact?: boolean }) {
+export function TelegramLink({
+  compact = false,
+  labelFrom = "sm",
+}: {
+  compact?: boolean;
+  labelFrom?: HeaderActionLabelFrom;
+}) {
   return (
     <a
       href={telegramUrl}
@@ -92,8 +121,8 @@ export function TelegramLink({ compact = false }: { compact?: boolean }) {
         height={20}
         className="h-5 w-5 shrink-0 object-contain"
       />
-      <span className={compact ? "hidden sm:inline" : undefined}>交流群</span>
-      <ExternalLink size={14} className="hidden md:block" />
+      <span className={getLabelClassName(compact, labelFrom)}>交流群</span>
+      <ExternalLink size={14} className={labelFrom === "2xl" ? "hidden 2xl:block" : "hidden md:block"} />
     </a>
   );
 }
