@@ -261,13 +261,13 @@ function OfferTable({ offers, onFeedback }: { offers: RawOffer[]; onFeedback: (o
       <div className="overflow-x-auto">
         <table className="min-w-[1040px] w-full table-fixed border-collapse text-left text-sm">
           <colgroup>
-            <col className="w-[110px]" />
-            <col className="w-[220px]" />
+            <col className="w-[90px]" />
+            <col className="w-[205px]" />
             <col />
+            <col className="w-[115px]" />
+            <col className="w-[120px]" />
             <col className="w-[130px]" />
-            <col className="w-[150px]" />
-            <col className="w-[140px]" />
-            <col className="w-[80px]" />
+            <col className="w-[64px]" />
           </colgroup>
           <thead className="bg-[#f2f4f4] text-[0.68rem] font-semibold text-[#5a6061]">
             <tr>
@@ -285,11 +285,11 @@ function OfferTable({ offers, onFeedback }: { offers: RawOffer[]; onFeedback: (o
               const available = isOfferAvailable(offer);
 
               return (
-                <tr key={offer.id} className={`transition hover:bg-[#f7f9f9] ${available ? "" : "bg-[#fbf7f6]"}`}>
+                <tr key={offer.id} className={`group/row transition hover:bg-[#f7f9f9] ${available ? "" : "bg-[#fbf7f6]"}`}>
                   <td className="px-5 py-4">
                     <OfferStatusBadge available={available} />
                   </td>
-                  <td className="max-w-[210px] px-5 py-4">
+                  <td className="max-w-[195px] px-4 py-4">
                     <span className="block truncate font-semibold text-[#202829]">
                       {sourceLabel(offer)}
                     </span>
@@ -297,15 +297,15 @@ function OfferTable({ offers, onFeedback }: { offers: RawOffer[]; onFeedback: (o
                       <span className="mt-1 block truncate text-xs text-[#5a6061]">{sourceSecondaryLabel(offer)}</span>
                     ) : null}
                   </td>
-                  <td className="max-w-[380px] px-5 py-4">
+                  <td className="px-5 py-4">
                     <OfferSourceTitle title={offer.sourceTitle} mode="table" />
                   </td>
-                  <td className="px-5 py-4">
+                  <td className="px-4 py-4">
                     <span className={`text-lg font-bold ${available ? "text-[#202829]" : "text-[#9b3328]"}`}>
                       {formatCurrency(offer.price, offer.currency)}
                     </span>
                   </td>
-                  <td className="whitespace-nowrap px-5 py-4 text-[#5a6061]">{formatRelativeTime(offerTimestamp(offer))}</td>
+                  <td className="whitespace-nowrap px-4 py-4 text-[#5a6061]">{formatRelativeTime(offerTimestamp(offer))}</td>
                   <td className="px-3 py-3 text-center">
                     <OfferLink offer={offer} available={available} compact />
                   </td>
@@ -358,7 +358,7 @@ function OfferSourceTitle({ title, mode }: { title: string; mode: "table" | "car
   if (!canExpand) {
     if (mode === "table") {
       return (
-        <span className="block truncate text-[#2d3435]" title={title} aria-label={`原始商品名：${title}`}>
+        <span className="block text-[#2d3435]" title={title} aria-label={`原始商品名：${title}`}>
           {title}
         </span>
       );
@@ -369,41 +369,24 @@ function OfferSourceTitle({ title, mode }: { title: string; mode: "table" | "car
 
   if (mode === "table") {
     return (
-      <div className="min-w-0 text-[#2d3435]">
-        <div className={expanded ? "leading-6" : "flex min-w-0 items-center gap-2"}>
-          <span
-            className={expanded ? "block whitespace-normal break-words" : "min-w-0 flex-1 truncate"}
-            title={title}
-            aria-label={`原始商品名：${title}`}
-          >
-            {title}
-          </span>
-          {!expanded ? (
-            <button
-              type="button"
-              onClick={() => setExpanded(true)}
-              aria-expanded={false}
-              aria-label={`展开原始商品名：${title}`}
-              className="inline-flex h-7 shrink-0 items-center gap-0.5 rounded-full bg-[#eef3f8] px-2 text-xs font-semibold text-[#47657a] transition hover:bg-[#dde8f1] focus:outline-none focus:ring-2 focus:ring-[#adb3b4]/35"
-            >
-              展开
-              <ChevronDown size={12} />
-            </button>
-          ) : null}
-        </div>
-        {expanded ? (
-          <button
-            type="button"
-            onClick={() => setExpanded(false)}
-            aria-expanded={true}
-            aria-label={`收起原始商品名：${title}`}
-            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-[#47657a] transition hover:text-[#2d3435] focus:outline-none focus:ring-2 focus:ring-[#adb3b4]/30"
-          >
-            收起
-            <ChevronUp size={12} />
-          </button>
-        ) : null}
-      </div>
+      <button
+        type="button"
+        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={expanded}
+        aria-label={`${expanded ? "收起" : "展开"}原始商品名：${title}`}
+        title={title}
+        className="group/title block w-full rounded-md text-left text-[#2d3435] transition hover:text-[#202829] focus:outline-none focus:ring-2 focus:ring-[#adb3b4]/30"
+      >
+        <span className={expanded ? "block whitespace-normal break-words leading-6" : "line-clamp-2 leading-6"}>
+          {title}
+        </span>
+        <span className={`mt-1 items-center gap-1 text-xs font-semibold text-[#47657a] ${
+          expanded ? "inline-flex" : "hidden group-hover/row:inline-flex group-focus-visible/title:inline-flex"
+        }`}>
+          {expanded ? "收起" : "更多"}
+          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+        </span>
+      </button>
     );
   }
 
