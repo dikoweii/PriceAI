@@ -167,7 +167,7 @@ curl -fsSL https://priceai.cc/priceai-edge-collector.sh | env \
   PRICEAI_COLLECTOR_NODE_ID="cn-vps-test-1" \
   PRICEAI_COLLECTOR_NODE_NAME="临时国内采集节点 1" \
   PRICEAI_COLLECTOR_NODE_REGION="cn" \
-  bash -s -- --family pay.ldxp.cn --limit 3 --dry-run
+  bash -s -- --family pay.ldxp.cn --limit 3 --round --dry-run
 ```
 
 确认可用后，正式跑一轮并写回：
@@ -178,10 +178,12 @@ curl -fsSL https://priceai.cc/priceai-edge-collector.sh | env \
   PRICEAI_COLLECTOR_NODE_ID="cn-vps-test-1" \
   PRICEAI_COLLECTOR_NODE_NAME="临时国内采集节点 1" \
   PRICEAI_COLLECTOR_NODE_REGION="cn" \
-  bash -s -- --family pay.ldxp.cn --limit 3
+  bash -s -- --family pay.ldxp.cn --limit 3 --round
 ```
 
-需要让临时节点持续工作时，加 `--loop`：
+服务器上建议用 `systemd timer` 每 30 分钟触发一次 `--round`，不要用 5 分钟高频轮询。`--round` 会在启动时固定本轮的 `staleBefore`，持续分批拉取本轮尚未更新的来源，直到没有待采集任务或达到 `--max-round-tasks` 上限。遇到连续 3 个风控/403 失败时，runner 会在本进程内冷却 5 分钟后继续本轮，而不是结束本轮等待下一次定时器。
+
+手工持续调试时才使用 `--loop`：
 
 ```bash
 curl -fsSL https://priceai.cc/priceai-edge-collector.sh | env \
@@ -189,7 +191,7 @@ curl -fsSL https://priceai.cc/priceai-edge-collector.sh | env \
   PRICEAI_COLLECTOR_NODE_ID="cn-vps-test-1" \
   PRICEAI_COLLECTOR_NODE_NAME="临时国内采集节点 1" \
   PRICEAI_COLLECTOR_NODE_REGION="cn" \
-  bash -s -- --family pay.ldxp.cn --limit 3 --loop --interval 300
+  bash -s -- --family pay.ldxp.cn --limit 3 --round --loop --interval 1800
 ```
 
 当前轻量节点只内置 `shopApi` 解析器，优先用于 `pay.ldxp.cn` / LDXP 这类换 IP 试采集场景。中心站点负责下发任务和接收日志，节点只负责执行，不保存长期配置。

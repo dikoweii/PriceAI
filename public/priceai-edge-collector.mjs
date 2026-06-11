@@ -9,6 +9,9 @@ const DEFAULT_FAMILY = "pay.ldxp.cn";
 const DEFAULT_LIMIT = 3;
 const DEFAULT_PAGE_DELAY_MS = 300;
 const DEFAULT_INTERVAL_SECONDS = 300;
+const DEFAULT_MAX_ROUND_TASKS = 200;
+const DEFAULT_WIND_CONTROL_COOLDOWN_SECONDS = 300;
+const DEFAULT_WIND_CONTROL_THRESHOLD = 3;
 
 const args = parseArgs(process.argv.slice(2));
 const config = {
@@ -29,6 +32,10 @@ const config = {
   limit: integerInRange(args.limit || process.env.PRICEAI_AGENT_LIMIT, 1, 20, DEFAULT_LIMIT),
   pageDelayMs: integerInRange(args.pageDelayMs || args["page-delay-ms"] || process.env.PRICEAI_AGENT_PAGE_DELAY_MS, 0, 5000, DEFAULT_PAGE_DELAY_MS),
   intervalSeconds: integerInRange(args.interval || args["interval-seconds"] || process.env.PRICEAI_AGENT_INTERVAL_SECONDS, 30, 3600, DEFAULT_INTERVAL_SECONDS),
+  round: truthy(args.round) || truthy(process.env.PRICEAI_AGENT_ROUND),
+  maxRoundTasks: integerInRange(args.maxRoundTasks || args["max-round-tasks"] || process.env.PRICEAI_AGENT_MAX_ROUND_TASKS, 1, 1000, DEFAULT_MAX_ROUND_TASKS),
+  windControlCooldownSeconds: integerInRange(args.windControlCooldownSeconds || args["wind-control-cooldown-seconds"] || process.env.PRICEAI_AGENT_WIND_CONTROL_COOLDOWN_SECONDS, 30, 3600, DEFAULT_WIND_CONTROL_COOLDOWN_SECONDS),
+  windControlThreshold: integerInRange(args.windControlThreshold || args["wind-control-threshold"] || process.env.PRICEAI_AGENT_WIND_CONTROL_THRESHOLD, 1, 20, DEFAULT_WIND_CONTROL_THRESHOLD),
   loop: truthy(args.loop) || truthy(process.env.PRICEAI_AGENT_LOOP),
   maxCycles: integerInRange(args.maxCycles || args["max-cycles"] || process.env.PRICEAI_AGENT_MAX_CYCLES, 1, 1000000, 1),
   dryRun: truthy(args.dryRun) || truthy(args["dry-run"]) || truthy(process.env.PRICEAI_AGENT_DRY_RUN),
@@ -65,60 +72,95 @@ async function main() {
 }
 
 async function runCycle() {
-  const tasks = await fetchTasks();
-  if (!tasks.length) {
-    console.log("[priceai-edge] no tasks");
-    return;
-  }
-
   let success = 0;
   let failed = 0;
   let offers = 0;
+  let processed = 0;
+  let consecutiveWindControl = 0;
+  const processedSourceIds = new Set();
+  const staleBefore = config.round ? new Date().toISOString() : null;
 
-  for (const task of tasks) {
-    const target = normalizeTask(task);
-    console.log(`\n==> ${target.sourceName} [${target.kind}]`);
-    const startedAt = Date.now();
-
-    try {
-      const collectedOffers = dedupeOffers(await collectShopApi(target));
-      const status = collectedOffers.length ? "success" : "failed";
-      const message = collectedOffers.length
-        ? `Edge collector found ${collectedOffers.length} offers.`
-        : "Edge collector found no offers.";
-
-      await postCrawlRun(target, status, message, collectedOffers, {
-        durationMs: Date.now() - startedAt,
-      });
-
-      if (status === "success") {
-        success += 1;
-        offers += collectedOffers.length;
-        printOfferPreview(collectedOffers);
-      } else {
-        failed += 1;
-        console.log(message);
-      }
-    } catch (error) {
-      failed += 1;
-      const message = errorMessage(error);
-      console.error(`Failed: ${message}`);
-      await postCrawlRun(target, "failed", message, [], {
-        durationMs: Date.now() - startedAt,
-      }).catch((postError) => {
-        console.error(`Failed to upload failure log: ${errorMessage(postError)}`);
-      });
+  do {
+    const tasks = await fetchTasks({ staleBefore, excludeSourceIds: Array.from(processedSourceIds) });
+    if (!tasks.length) {
+      console.log(processed ? "[priceai-edge] no more tasks in this round" : "[priceai-edge] no tasks");
+      break;
     }
-  }
 
-  console.log(`\n[priceai-edge] done: success=${success} failed=${failed} offers=${offers}`);
+    for (const task of tasks) {
+      const target = normalizeTask(task);
+      if (processedSourceIds.has(target.sourceId)) continue;
+      processedSourceIds.add(target.sourceId);
+      processed += 1;
+      console.log(`\n==> ${target.sourceName} [${target.kind}]`);
+      const startedAt = Date.now();
+
+      try {
+        const collectedOffers = dedupeOffers(await collectShopApi(target));
+        const status = collectedOffers.length ? "success" : "failed";
+        const message = collectedOffers.length
+          ? `Edge collector found ${collectedOffers.length} offers.`
+          : "Edge collector found no offers.";
+
+        await postCrawlRun(target, status, message, collectedOffers, {
+          durationMs: Date.now() - startedAt,
+        });
+
+        if (status === "success") {
+          success += 1;
+          offers += collectedOffers.length;
+          consecutiveWindControl = 0;
+          printOfferPreview(collectedOffers);
+        } else {
+          failed += 1;
+          consecutiveWindControl = 0;
+          console.log(message);
+        }
+      } catch (error) {
+        failed += 1;
+        const message = errorMessage(error);
+        const windControl = isWindControlError(error);
+        if (windControl) consecutiveWindControl += 1;
+        else consecutiveWindControl = 0;
+
+        console.error(`Failed: ${message}`);
+        await postCrawlRun(target, "failed", message, [], {
+          durationMs: Date.now() - startedAt,
+          windControl,
+        }).catch((postError) => {
+          console.error(`Failed to upload failure log: ${errorMessage(postError)}`);
+        });
+
+        if (consecutiveWindControl >= config.windControlThreshold) {
+          console.log(
+            `[priceai-edge] ${consecutiveWindControl} consecutive wind-control failures; cooling down ${config.windControlCooldownSeconds}s before continuing this round`,
+          );
+          await delay(config.windControlCooldownSeconds * 1000);
+          consecutiveWindControl = 0;
+        }
+      }
+
+      if (config.round && processed >= config.maxRoundTasks) {
+        console.log(`[priceai-edge] reached max round tasks (${config.maxRoundTasks})`);
+        break;
+      }
+    }
+
+    if (!config.round || processed >= config.maxRoundTasks) break;
+  } while (true);
+
+  console.log(`\n[priceai-edge] done: processed=${processed} success=${success} failed=${failed} offers=${offers}`);
 }
 
-async function fetchTasks() {
+async function fetchTasks(options = {}) {
   const url = new URL(`${config.endpoint}/api/admin/collector-agent/tasks`);
   url.searchParams.set("kind", config.kind);
   url.searchParams.set("family", config.family);
   url.searchParams.set("limit", String(config.limit));
+  if (options.staleBefore) url.searchParams.set("staleBefore", options.staleBefore);
+  if (options.excludeSourceIds?.length) {
+    url.searchParams.set("excludeSourceIds", options.excludeSourceIds.join(","));
+  }
 
   const body = await fetchJson(url, {
     headers: authHeaders(),
@@ -511,6 +553,12 @@ function integerInRange(value, min, max, fallback) {
 
 function truthy(value) {
   return value === true || value === "true" || value === "1" || value === "yes";
+}
+
+function isWindControlError(error) {
+  return /HTTP 403|denied by ip_access_rule|verification\/challenge|captcha|challenge|验证|风控|安全/i.test(
+    errorMessage(error),
+  );
 }
 
 function delay(ms) {

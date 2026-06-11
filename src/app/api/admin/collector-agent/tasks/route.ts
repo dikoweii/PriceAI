@@ -14,6 +14,8 @@ const querySchema = z.object({
   kind: z.string().optional().default("shopApi"),
   family: z.string().optional().default("pay.ldxp.cn"),
   limit: z.coerce.number().int().min(1).max(MAX_LIMIT).optional().default(DEFAULT_LIMIT),
+  staleBefore: z.string().datetime().optional(),
+  excludeSourceIds: z.string().optional(),
 });
 
 export async function GET(request: Request) {
@@ -33,19 +35,34 @@ export async function GET(request: Request) {
     }
 
     const hostCandidates = familyHosts(query.family);
-    const { data: sources, error } = await supabase
+    const staleBefore = query.staleBefore ? new Date(query.staleBefore).toISOString() : null;
+    const excludedSourceIds = new Set(
+      (query.excludeSourceIds || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    );
+    const fetchLimit = Math.max(query.limit * 50, query.limit);
+    let sourcesQuery = supabase
       .from("sources")
       .select("id,name,base_url,entry_url,collection_method,collector_kind,enabled,last_checked_at,last_success_at")
       .eq("enabled", true)
       .eq("collector_kind", query.kind)
       .order("last_checked_at", { ascending: true, nullsFirst: true })
       .order("name", { ascending: true })
-      .limit(Math.max(query.limit * 8, query.limit));
+      .limit(Math.min(fetchLimit, 1000));
+
+    if (staleBefore) {
+      sourcesQuery = sourcesQuery.or(`last_checked_at.is.null,last_checked_at.lte.${staleBefore}`);
+    }
+
+    const { data: sources, error } = await sourcesQuery;
 
     if (error) throw error;
 
     const selectedSources = (sources || [])
       .filter((source) => source.collection_method !== "public_json")
+      .filter((source) => !excludedSourceIds.has(String(source.id)))
       .filter((source) => {
         const sourceUrl = String(source.entry_url || source.base_url || "");
         const baseUrl = String(source.base_url || deriveBaseUrl(sourceUrl) || "");
@@ -76,6 +93,7 @@ export async function GET(request: Request) {
       kind: query.kind,
       family: query.family,
       limit: query.limit,
+      staleBefore,
       tasks,
     });
   } catch (error) {
