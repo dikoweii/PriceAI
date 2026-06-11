@@ -165,6 +165,8 @@ type ApiModelDatasetIndex = {
 
 const apiModelDatasetIndexCache = new WeakMap<ApiModelDataset, ApiModelDatasetIndex>();
 
+const OPENCODE_GO_REFERRAL_URL = "https://opencode.ai/go?ref=22QZ8PAKGD";
+
 export const apiModelUpdatedAt = "2026-06-07";
 
 export const apiModelFxSummary: ApiModelFxSummary = {
@@ -650,8 +652,8 @@ export const apiProviders: ApiProvider[] = [
     name: "OpenCode Go",
     type: "subscription",
     billingMode: "订阅套餐",
-    url: "https://opencode.ai/go?ref=22QZ8PAKGD",
-    pricingUrl: "https://dev.opencode.ai/docs/go/",
+    url: OPENCODE_GO_REFERRAL_URL,
+    pricingUrl: OPENCODE_GO_REFERRAL_URL,
     logoUrl: "/brand-icons/opencode.png",
     description: "OpenCode 面向开放编码模型的低价订阅套餐，提供多模型 API endpoint。",
     limitSummary: "$12/5h · $30/week · $60/month 用量窗口。",
@@ -922,7 +924,7 @@ export const apiPlans: ApiPlan[] = [
     type: "subscription",
     priceLabel: "$5 首月，之后 $10/月",
     priceUsdMonthly: 10,
-    url: "https://opencode.ai/go?ref=22QZ8PAKGD",
+    url: OPENCODE_GO_REFERRAL_URL,
     quotaSummary: "5 小时 $12、每周 $30、每月 $60 的用量窗口。",
     resetSummary: "短周期额度按 OpenCode Go 规则滚动或周期刷新。",
     limitSummary: "$12/5h · $30/week · $60/month 用量窗口。",
@@ -2039,6 +2041,7 @@ function opencodeGoOffers(): ApiModelOffer[] {
     limitations: "请求数随模型成本变化，适合编码工具，不等同无限 API。",
     compatibility: ["OpenAI-compatible", "Anthropic-compatible", "Coding Agent", "中文模型"],
     sourceLabel: "OpenCode Go Docs",
+    pricingUrl: OPENCODE_GO_REFERRAL_URL,
   };
 
   return [
