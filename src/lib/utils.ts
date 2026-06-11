@@ -101,3 +101,17 @@ export function formatDateMinute(value: string | null | undefined): string {
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
+
+export function formatDateDay(value: string | null | undefined): string {
+  if (!value) return "未记录";
+
+  const text = value.trim();
+  const dateMatch = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (dateMatch) return dateMatch[1];
+
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
+
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}

@@ -10,7 +10,8 @@ import {
   apiProviderTypeLabels,
   formatApiDisplayText,
   formatApiPrice,
-  formatPlanPrice,
+  formatPlanPriceFrom,
+  getPlanMonthlyPriceCny,
   getApiModelOffersByProvider,
   getApiPlansByProvider,
   getApiProviderSummary,
@@ -20,7 +21,7 @@ import {
   type ApiProviderType,
 } from "@/lib/api-models";
 import { getApiModelDataset } from "@/lib/api-models-db";
-import { formatDateMinute } from "@/lib/utils";
+import { formatDateDay } from "@/lib/utils";
 
 export const dynamicParams = true;
 export const revalidate = 1800;
@@ -78,6 +79,8 @@ export default async function ApiProviderDetailPage({
   const provider = summary.provider;
   const rows = getApiModelOffersByProvider(id, dataset);
   const plans = getApiPlansByProvider(id, dataset);
+  const planRows = rows.length ? [] : [...plans].sort(compareApiPlansByMonthlyPrice);
+  const detailCount = rows.length + planRows.length;
 
   return (
     <main className="min-h-screen bg-[#f9f9f9] text-[#2d3435]">
@@ -128,32 +131,18 @@ export default async function ApiProviderDetailPage({
 
             <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-4">
               <Metric label="模型覆盖" value={`${summary.modelCount}`} />
-              <Metric label="报价明细" value={`${summary.offerCount}`} />
+              <Metric label="公开条目" value={`${detailCount}`} />
               <Metric label="Token Plan" value={`${summary.planCount}`} />
               <Metric label="类型" value={apiProviderTypeLabels[provider.type]} />
             </div>
           </div>
         </section>
 
-        {plans.length ? (
-          <section className="mt-8">
-            <div className="mb-3">
-              <h2 className="font-serif text-3xl font-semibold tracking-normal text-[#202829]">Token Plan 与额度</h2>
-              <p className="mt-2 text-sm text-[#5a6061]">先看这个渠道的 Token Plan 口径，再决定是否适合你的调用方式。</p>
-            </div>
-            <div className="grid gap-3 lg:grid-cols-2">
-              {plans.map((plan) => (
-                <PlanPanel key={plan.id} plan={plan} currency={currency} />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="font-serif text-3xl font-semibold tracking-normal text-[#202829]">覆盖模型明细</h2>
             <p className="mt-2 text-sm text-[#5a6061]">
-              {rows.length} 条公开渠道信息 · 人民币展示，汇率日期 {dataset.fxSummary.date}
+              {detailCount} 条公开渠道信息 · 人民币展示，汇率日期 {dataset.fxSummary.date}
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2 whitespace-nowrap text-sm text-[#5a6061]">
@@ -163,6 +152,7 @@ export default async function ApiProviderDetailPage({
         </div>
 
         <ApiOfferMobileList rows={rows} currency={currency} />
+        <ApiPlanMobileList plans={planRows} currency={currency} />
 
         <section className="mt-5 hidden overflow-hidden rounded-lg bg-white shadow-[0_20px_55px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15 md:block">
           <div className="overflow-x-auto">
@@ -178,12 +168,15 @@ export default async function ApiProviderDetailPage({
                   <TableHead>模型</TableHead>
                   <TableHead>价格</TableHead>
                   <TableHead>额度与限制</TableHead>
-                  <TableHead>来源</TableHead>
+                  <TableHead>来源链接</TableHead>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#edf0f1]">
                 {rows.map((offer) => (
                   <ApiOfferRow key={offer.id} offer={offer} currency={currency} />
+                ))}
+                {planRows.map((plan) => (
+                  <ApiPlanRow key={plan.id} plan={plan} currency={currency} />
                 ))}
               </tbody>
             </table>
@@ -195,34 +188,6 @@ export default async function ApiProviderDetailPage({
         </p>
       </div>
     </main>
-  );
-}
-
-function PlanPanel({ plan, currency }: { plan: ApiPlan; currency: ApiCurrency }) {
-  return (
-    <article className="rounded-lg bg-white p-5 shadow-[0_16px_45px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="font-semibold text-[#202829]">{plan.providerName}</p>
-          <h3 className="mt-1 text-lg font-bold text-[#202829]">{plan.name}</h3>
-        </div>
-        <TypeChip type={plan.type} />
-      </div>
-      <p className="mt-4 text-sm font-semibold text-[#202829]">{formatPlanPrice(plan, currency)}</p>
-      <p className="mt-2 text-sm leading-6 text-[#5a6061]">{formatApiDisplayText(plan.quotaSummary)}</p>
-      <p className="mt-1 text-sm leading-6 text-[#5a6061]">{formatApiDisplayText(plan.resetSummary)}</p>
-      <p className="mt-3 text-xs leading-5 text-[#7a541b]">{formatApiDisplayText(plan.limitSummary)}</p>
-      {plan.coverageLabel ? <p className="mt-2 text-xs leading-5 text-[#5a6061]">{formatApiDisplayText(plan.coverageLabel)}</p> : null}
-      <a
-        href={plan.url}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-4 inline-flex h-9 items-center gap-1.5 rounded-full bg-[#e4e9ea] px-3 text-xs font-semibold text-[#2d3435] transition hover:bg-[#dde4e5]"
-      >
-        {plan.sourceLabel}
-        <ExternalLink size={13} />
-      </a>
-    </article>
   );
 }
 
@@ -268,7 +233,7 @@ function ApiOfferMobileList({ rows, currency }: { rows: ApiModelOfferWithRelatio
                 rel="noreferrer"
                 className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-full bg-[#e4e9ea] px-3 text-xs font-semibold text-[#2d3435] transition hover:bg-[#dde4e5]"
               >
-                <span className="truncate">{offer.sourceLabel}</span>
+                <span className="truncate">查看来源</span>
                 <ExternalLink size={13} className="shrink-0" />
               </a>
               <span className="text-xs text-[#5a6061]">{formatDatasetDate(offer.updatedAt)}</span>
@@ -276,6 +241,41 @@ function ApiOfferMobileList({ rows, currency }: { rows: ApiModelOfferWithRelatio
           </article>
         );
       })}
+    </section>
+  );
+}
+
+function ApiPlanMobileList({ plans, currency }: { plans: ApiPlan[]; currency: ApiCurrency }) {
+  if (!plans.length) return null;
+
+  return (
+    <section className="mt-5 grid grid-cols-1 gap-3 md:hidden">
+      {plans.map((plan) => (
+        <article key={plan.id} className="rounded-lg bg-white p-4 shadow-[0_16px_45px_rgba(45,52,53,0.045)] ring-1 ring-[#adb3b4]/15">
+          <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-base font-bold leading-6 text-[#202829]">{plan.name}</p>
+              <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-[#5a6061]">{formatApiDisplayText(plan.coverageLabel || plan.modelIds.join("、") || "模型覆盖以官方页面为准")}</p>
+            </div>
+            <TypeChip type={plan.type} />
+          </div>
+          <p className="mt-3 text-sm font-semibold leading-6 text-[#202829]">{formatPlanPriceFrom(plan, currency)}</p>
+          <p className="mt-1 line-clamp-3 text-xs leading-5 text-[#5a6061]">{formatApiDisplayText(plan.quotaSummary)}</p>
+          <p className="mt-2 line-clamp-2 text-xs leading-5 text-[#5a6061]">{formatApiDisplayText(plan.limitSummary)}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <a
+              href={plan.url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-full bg-[#e4e9ea] px-3 text-xs font-semibold text-[#2d3435] transition hover:bg-[#dde4e5]"
+            >
+              <span className="truncate">查看来源</span>
+              <ExternalLink size={13} className="shrink-0" />
+            </a>
+            <span className="text-xs text-[#5a6061]">{formatDatasetDate(plan.updatedAt)}</span>
+          </div>
+        </article>
+      ))}
     </section>
   );
 }
@@ -316,7 +316,7 @@ function ApiOfferRow({ offer, currency }: { offer: ApiModelOfferWithRelations; c
             rel="noreferrer"
             className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#e4e9ea] px-3 py-2 text-xs font-semibold text-[#2d3435] transition hover:bg-[#dde4e5]"
           >
-            <span className="truncate">{offer.sourceLabel}</span>
+            <span className="truncate">查看来源</span>
             <ExternalLink size={13} className="shrink-0" />
           </a>
           <span className="text-xs font-medium text-[#5a6061]">{formatDatasetDate(offer.updatedAt)}</span>
@@ -324,6 +324,48 @@ function ApiOfferRow({ offer, currency }: { offer: ApiModelOfferWithRelations; c
       </td>
     </tr>
   );
+}
+
+function ApiPlanRow({ plan, currency }: { plan: ApiPlan; currency: ApiCurrency }) {
+  return (
+    <tr className="align-top transition hover:bg-[#f7f9f9]">
+      <td className="px-5 py-4">
+        <p className="block truncate font-semibold leading-6 text-[#202829]">{plan.name}</p>
+        <p className="mt-1 text-xs font-medium text-[#5a6061]">{formatApiDisplayText(plan.coverageLabel || plan.modelIds.join("、") || "模型覆盖以官方页面为准")}</p>
+      </td>
+      <td className="px-5 py-4">
+        <p className="font-semibold leading-6 text-[#202829]">{formatPlanPriceFrom(plan, currency)}</p>
+        <p className="mt-1 text-xs leading-5 text-[#5a6061]">{formatApiDisplayText(plan.resetSummary)}</p>
+      </td>
+      <td className="px-5 py-4">
+        <p className="line-clamp-3 text-sm font-medium leading-6 text-[#2d3435]">{formatApiDisplayText(plan.quotaSummary)}</p>
+        <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#5a6061]">{formatApiDisplayText(plan.limitSummary)}</p>
+      </td>
+      <td className="px-5 py-4">
+        <div className="flex min-w-0 flex-col items-start gap-2">
+          <a
+            href={plan.url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#e4e9ea] px-3 py-2 text-xs font-semibold text-[#2d3435] transition hover:bg-[#dde4e5]"
+          >
+            <span className="truncate">查看来源</span>
+            <ExternalLink size={13} className="shrink-0" />
+          </a>
+          <span className="text-xs font-medium text-[#5a6061]">{formatDatasetDate(plan.updatedAt)}</span>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function compareApiPlansByMonthlyPrice(a: ApiPlan, b: ApiPlan) {
+  const aPrice = getPlanMonthlyPriceCny(a);
+  const bPrice = getPlanMonthlyPriceCny(b);
+  if (aPrice === null && bPrice === null) return a.name.localeCompare(b.name, "zh-CN");
+  if (aPrice === null) return 1;
+  if (bPrice === null) return -1;
+  return aPrice - bPrice || a.name.localeCompare(b.name, "zh-CN");
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -408,5 +450,5 @@ function formatCacheApiPrice(price: ApiModelOfferWithRelations["cacheReadPrice"]
 }
 
 function formatDatasetDate(value: string) {
-  return formatDateMinute(value);
+  return formatDateDay(value);
 }

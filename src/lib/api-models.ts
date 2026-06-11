@@ -1730,6 +1730,16 @@ export function formatPlanPrice(plan: ApiPlan, currency: ApiCurrency) {
   return `${formatUsdAmount(plan.priceUsdMonthly, currency)}/月 · ${plan.priceLabel}`;
 }
 
+export function formatPlanPriceFrom(plan: ApiPlan, currency: ApiCurrency) {
+  return `${formatPlanPrice(plan, currency)}起`;
+}
+
+export function getPlanMonthlyPriceCny(plan: ApiPlan) {
+  if (typeof plan.priceCnyMonthly === "number") return plan.priceCnyMonthly;
+  if (typeof plan.priceUsdMonthly === "number") return plan.priceUsdMonthly * apiModelFxSummary.usdToCny;
+  return null;
+}
+
 export function formatApiBillingMode(value: ApiBillingMode) {
   if (value === "订阅套餐") return "Token Plan";
   return value;
@@ -1965,6 +1975,8 @@ function buildApiProviderSummary(provider: ApiProvider, scope: ApiModelScope, da
     ...plans.flatMap((plan) => plan.modelIds.map((modelId) => index.modelById.get(modelId) ?? null).filter((model): model is ApiModel => Boolean(model))),
   ]);
 
+  const primaryPlan = [...plans].sort(comparePlanPrice)[0] ?? null;
+
   return {
     id: provider.id,
     provider,
@@ -1975,7 +1987,7 @@ function buildApiProviderSummary(provider: ApiProvider, scope: ApiModelScope, da
     modelNames: models.map((model) => model.displayName).slice(0, 6),
     compatibility: uniqueStrings([...offers.flatMap((offer) => offer.compatibility), ...plans.flatMap((plan) => plan.compatibility)]).slice(0, 5),
     suitableTools: uniqueStrings([...offers.flatMap((offer) => offer.suitableTools), ...plans.flatMap((plan) => plan.suitableTools)]).slice(0, 5),
-    primaryPlan: plans[0] ?? null,
+    primaryPlan,
     latestUpdatedAt: latestDate([provider.updatedAt, ...offers.map((offer) => offer.updatedAt), ...plans.map((plan) => plan.updatedAt)]),
   };
 }
@@ -2478,6 +2490,16 @@ function comparePlan(a: ApiPlan, b: ApiPlan) {
   const typeDelta = providerTypeRank(a.type) - providerTypeRank(b.type);
   if (typeDelta !== 0) return typeDelta;
   return a.name.localeCompare(b.name, "zh-CN");
+}
+
+function comparePlanPrice(a: ApiPlan, b: ApiPlan) {
+  const priceDelta = planMonthlyPriceRank(a) - planMonthlyPriceRank(b);
+  if (priceDelta !== 0) return priceDelta;
+  return comparePlan(a, b);
+}
+
+function planMonthlyPriceRank(plan: ApiPlan) {
+  return getPlanMonthlyPriceCny(plan) ?? Number.POSITIVE_INFINITY;
 }
 
 function compareModel(a: ApiModel, b: ApiModel) {

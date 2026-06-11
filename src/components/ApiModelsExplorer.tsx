@@ -24,7 +24,8 @@ import {
   formatApiBillingMode,
   formatApiDisplayText,
   formatApiPrice,
-  formatPlanPrice,
+  formatPlanPriceFrom,
+  getPlanMonthlyPriceCny,
   getApiModelOffers,
   getApiModelFamilyOptions,
   getApiModelSummaries,
@@ -37,7 +38,7 @@ import {
   type ApiProviderSummary,
   type ApiProviderType,
 } from "@/lib/api-models";
-import { formatDateMinute } from "@/lib/utils";
+import { formatDateDay } from "@/lib/utils";
 
 const typeFilters = ["all", "free", "official", "subscription"] as const;
 const apiScopeOptions = ["models", "offers", "providers"] as const;
@@ -626,7 +627,7 @@ function ApiOfferTable({
               <TableHead>模型 / 来源渠道</TableHead>
               <TableHead>价格</TableHead>
               <TableHead>额度与限制</TableHead>
-              <TableHead>来源</TableHead>
+              <TableHead>来源链接</TableHead>
             </tr>
           </thead>
           <tbody className="divide-y divide-[#edf0f1]">
@@ -654,9 +655,6 @@ function ApiOfferTable({
                           </span>
                         </Link>
                         <TypeChip type={offer.provider.type} />
-                        <span className="inline-flex h-7 items-center whitespace-nowrap rounded-full bg-[#f2f4f4] px-2.5 text-xs font-semibold text-[#5a6061] ring-1 ring-[#adb3b4]/15">
-                          {formatApiBillingMode(offer.provider.billingMode)}
-                        </span>
                       </div>
                     </div>
                   </td>
@@ -681,19 +679,12 @@ function ApiOfferTable({
                         href={sourceHref}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex max-w-full items-center rounded-full bg-[#e4e9ea] px-3 py-2 text-xs font-semibold text-[#2d3435] transition hover:bg-[#dde4e5]"
+                        className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-[#e4e9ea] px-3 py-2 text-xs font-semibold text-[#2d3435] transition hover:bg-[#dde4e5]"
                       >
-                        <span className="truncate">{offer.sourceLabel}</span>
+                        <span className="truncate">查看来源</span>
+                        <ExternalLink size={13} className="shrink-0" />
                       </a>
                       <span className="text-xs font-medium text-[#5a6061]">{formatDatasetDate(offer.updatedAt)}</span>
-                      <Link
-                        href={apiModelDetailHref(offer.modelId, returnQuery)}
-                        onClick={trackApiModelDetailOpen}
-                        className="inline-flex h-8 items-center justify-center gap-1 rounded-full bg-[#2d3435] px-3 text-xs font-semibold text-[#f8f8f8] transition hover:bg-[#1f2526]"
-                      >
-                        查看
-                        <ChevronRight size={13} />
-                      </Link>
                     </div>
                   </td>
                 </tr>
@@ -763,7 +754,7 @@ function ApiOfferMobileList({
                     rel="noreferrer"
                     className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-full bg-[#e4e9ea] px-3 text-xs font-semibold text-[#2d3435] transition hover:bg-[#dde4e5]"
                   >
-                    <span className="truncate">{offer.sourceLabel}</span>
+                    <span className="truncate">查看来源</span>
                     <ExternalLink size={13} className="shrink-0" />
                   </a>
                   <span className="text-xs text-[#5a6061]">{formatDatasetDate(offer.updatedAt)}</span>
@@ -969,7 +960,7 @@ function ApiProviderSummaryTable({
                   <td className="max-w-[270px] px-5 py-4">
                     {summary.primaryPlan ? (
                       <>
-                        <p className="font-semibold leading-6 text-[#202829]">{formatPlanPrice(summary.primaryPlan, currency)}</p>
+                        <p className="font-semibold leading-6 text-[#202829]">{formatPlanPriceFrom(summary.primaryPlan, currency)}</p>
                         <p className="mt-1 text-xs leading-5 text-[#5a6061]">{formatApiDisplayText(summary.primaryPlan.quotaSummary)}</p>
                       </>
                     ) : (
@@ -1026,7 +1017,7 @@ function ApiProviderSummaryMobileList({
                   <TypeChip type={provider.type} />
                 </div>
                 <p className="mt-3 text-sm font-semibold leading-6 text-[#202829]">
-                  {summary.primaryPlan ? formatPlanPrice(summary.primaryPlan, currency) : `${summary.modelCount || summary.offerCount} 个模型`}
+                  {summary.primaryPlan ? formatPlanPriceFrom(summary.primaryPlan, currency) : `${summary.modelCount || summary.offerCount} 个模型`}
                 </p>
                 <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#5a6061]">
                   {summary.modelNames.join("、") || summary.primaryPlan?.coverageLabel || "动态模型列表"}
@@ -1335,7 +1326,7 @@ function pickParam<T extends string>(value: string, options: readonly T[], fallb
 }
 
 function formatDatasetDate(value: string) {
-  return formatDateMinute(value);
+  return formatDateDay(value);
 }
 
 function scopeCountLabel(scopeMode: ScopeMode) {
@@ -1444,7 +1435,10 @@ function compareApiOffers(a: ApiModelOfferWithRelations, b: ApiModelOfferWithRel
 
 function compareApiProviders(a: ApiProviderSummary, b: ApiProviderSummary, sort: MobileSortMode) {
   if (sort === "price") {
-    const priceDelta = compareOptionalNumber(a.primaryPlan?.priceUsdMonthly ?? null, b.primaryPlan?.priceUsdMonthly ?? null);
+    const priceDelta = compareOptionalNumber(
+      a.primaryPlan ? getPlanMonthlyPriceCny(a.primaryPlan) : null,
+      b.primaryPlan ? getPlanMonthlyPriceCny(b.primaryPlan) : null,
+    );
     if (priceDelta !== 0) return priceDelta;
   }
 
