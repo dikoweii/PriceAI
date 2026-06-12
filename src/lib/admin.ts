@@ -336,7 +336,7 @@ export async function upsertRawOffer(input: OfferInput & { sourceId?: string | n
 
 export async function upsertRawOffers(
   offers: OfferInput[],
-  options: { collectionMethod?: CollectionMethod } = {},
+  options: { collectionMethod?: CollectionMethod; checkedAt?: string } = {},
 ): Promise<RawOfferUpsertResult> {
   const supabase = getSupabaseServerClient();
   if (!supabase) throw new Error("Supabase 尚未配置，无法保存报价。");
@@ -346,7 +346,7 @@ export async function upsertRawOffers(
   const rows = [];
   const collectionMethod = options.collectionMethod || "browser";
   const sourceCache = new Map<string, Source>();
-  const checkedAt = new Date().toISOString();
+  const checkedAt = normalizedDateString(options.checkedAt) || new Date().toISOString();
 
   for (const offer of offers) {
     const sourceKey = offer.sourceId || `${offer.sourceName}|${offer.sourceUrl}|${collectionMethod}`;
@@ -523,6 +523,13 @@ async function refreshSeenRawOfferRows(rows: Array<Record<string, unknown>>): Pr
 
 function compactUndefined(input: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
+}
+
+function normalizedDateString(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time)) return null;
+  return new Date(time).toISOString();
 }
 
 function comparableValue(value: unknown): string {

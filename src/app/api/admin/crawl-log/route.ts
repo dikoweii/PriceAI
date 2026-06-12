@@ -90,7 +90,9 @@ async function saveCrawlLogRun(
   supabase: NonNullable<ReturnType<typeof getSupabaseServerClient>>,
   payload: z.infer<typeof crawlLogPayloadSchema>,
 ) {
-  const startedAt = new Date().toISOString();
+  const receivedAt = new Date().toISOString();
+  const collectedAt = dateFromDetails(payload.details, "collectedAt") || receivedAt;
+  const startedAt = dateFromDetails(payload.details, "collectionStartedAt") || receivedAt;
   const source = await upsertSource({
     id: payload.sourceId,
     name: payload.sourceName,
@@ -103,16 +105,16 @@ async function saveCrawlLogRun(
     ...offer,
     sourceId: offer.sourceId || payload.sourceId || source.id,
   }));
-  const upsertResult = await upsertRawOffers(offers, { collectionMethod: payload.mode });
+  const upsertResult = await upsertRawOffers(offers, { collectionMethod: payload.mode, checkedAt: collectedAt });
   const successCount = upsertResult.receivedCount;
-  const finishedAt = new Date().toISOString();
+  const savedAt = new Date().toISOString();
   const seenOfferIds = seenOfferIdsFromDetails(payload.details) || offers.map(rawOfferInputId);
   const fullSnapshot = fullSnapshotFromDetails(payload.details, payload.status);
 
   const sourceCollectionResult = await recordSourceCollectionResult({
     sourceId: source.id,
     status: payload.status,
-    checkedAt: finishedAt,
+    checkedAt: collectedAt,
     message: payload.message || null,
     seenOfferIds,
     fullSnapshot,
@@ -125,12 +127,15 @@ async function saveCrawlLogRun(
     mode: payload.mode,
     status: payload.status,
     started_at: startedAt,
-    finished_at: finishedAt,
+    finished_at: collectedAt,
     success_count: successCount,
     failure_count: Math.max(0, payload.offers.length - successCount),
     message: payload.message || `采集到 ${successCount} 条报价，写入 ${upsertResult.writtenCount} 条，刷新 ${upsertResult.refreshedCount} 条。`,
     details: {
       ...(payload.details || {}),
+      receivedAt,
+      savedAt,
+      collectedAt,
       writeStats: {
         receivedCount: upsertResult.receivedCount,
         writtenCount: upsertResult.writtenCount,
@@ -203,4 +208,12 @@ function seenOfferIdsFromDetails(details: Record<string, unknown> | undefined): 
   const value = details?.seenOfferIds;
   if (!Array.isArray(value)) return null;
   return value.map((item) => String(item)).filter(Boolean);
+}
+
+function dateFromDetails(details: Record<string, unknown> | undefined, key: string): string | null {
+  const value = details?.[key];
+  if (typeof value !== "string") return null;
+  const time = new Date(value).getTime();
+  if (!Number.isFinite(time)) return null;
+  return new Date(time).toISOString();
 }
