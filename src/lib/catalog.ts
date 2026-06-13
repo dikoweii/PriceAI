@@ -494,6 +494,10 @@ function classifyOfferByTitle(
     return getCanonicalProduct("other-product");
   }
 
+  if (isMirrorSiteProduct(value)) {
+    return getCanonicalProduct("other-product");
+  }
+
   if (isOtherTool(value)) {
     return getCanonicalProduct(classifyOtherTool(value));
   }
@@ -866,6 +870,12 @@ function isToolSourceCodeProduct(value: string): boolean {
   return false;
 }
 
+function isMirrorSiteProduct(value: string): boolean {
+  if (!matches(value, ["镜像站", "镜像"])) return false;
+
+  return matches(value, ["chatgpt", "gpt", "openai", "plus", "claude", "gemini", "grok"]);
+}
+
 function isVerificationService(value: string): boolean {
   if (isStandaloneVerificationService(value)) return true;
 
@@ -958,6 +968,7 @@ function isStandaloneVerificationService(value: string): boolean {
 
   if (
     matches(value, [
+      "google 反重力可用 claude",
       "codex接码",
       "codex 接码",
       "gpt codex 接码",
@@ -979,6 +990,10 @@ function isStandaloneVerificationService(value: string): boolean {
     ]) &&
     !hasAccountBundleSignal(value)
   ) {
+    return true;
+  }
+
+  if (matches(value, ["反重力可用"]) && matches(value, ["google", "claude"]) && !hasAccountBundleSignal(value)) {
     return true;
   }
 
@@ -1140,6 +1155,7 @@ function isNegatedPlus(value: string): boolean {
 
 function isApiProduct(value: string): boolean {
   if (isModelApiCreditProduct(value)) return true;
+  if (isClaudeCodeCreditProduct(value)) return true;
   if (isChatGptAccountOrSubscriptionDominant(value)) return false;
   if (isChatGptTeam(value)) return false;
   if (isClaudeProduct(value) && matches(value, ["team", "席位", "标准席位", "高级席位", "1.25x", "1.25倍", "6.25x", "6.25倍"])) return false;
@@ -1157,6 +1173,13 @@ function isApiProduct(value: string): boolean {
   if (matches(value, ["额度"]) && matches(value, ["claude", "gemini", "gpt", "codex", "openai", "ai 平台"])) return true;
 
   return false;
+}
+
+function isClaudeCodeCreditProduct(value: string): boolean {
+  if (!matches(value, ["claude code"])) return false;
+
+  return matches(value, ["每天", "有效期", "额度", "不限量额度"]) &&
+    (matches(value, ["刀", "美元", "美金"]) || /\d+\s*\$/.test(value));
 }
 
 function isModelApiCreditProduct(value: string): boolean {

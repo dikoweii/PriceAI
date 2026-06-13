@@ -184,7 +184,7 @@ function buildSuspiciousChecks(items) {
       expected: "chatgpt-*",
       filter: (offer) =>
         offer.nextProductId === "other-product" &&
-        !/教程|登陆教程|登录教程|仅文字|仅图文|persona|cyber/.test(offer.normalizedTitle) &&
+        !/教程|登陆教程|登录教程|仅文字|仅图文|persona|cyber|镜像站|镜像/.test(offer.normalizedTitle) &&
         /(chatgpt|gpt|plus|pro\s*20|pro20|20x|x20|20×|pro\s*5|pro5|5x|x5|5×|business|busisness|team)/i.test(offer.normalizedTitle),
     },
     {
