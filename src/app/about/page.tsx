@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
@@ -15,7 +14,9 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { AppLogo } from "@/components/AppLogo";
+import { BrandIcon } from "@/components/BrandIcon";
 import { JsonLd } from "@/components/JsonLd";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { platformOptions } from "@/lib/catalog";
 import { getExplorerData } from "@/lib/data";
 import type { ExplorerProductSummary } from "@/lib/types";
@@ -34,16 +35,6 @@ export const metadata: Metadata = {
     description: "购买 AI 订阅或接入模型 API 前，先看清价格、来源、库存和更新时间。",
     url: "https://priceai.cc/about",
   },
-};
-
-const platformIconMap: Record<string, string> = {
-  ChatGPT: "/brand-icons/chatgpt.svg",
-  Claude: "/brand-icons/claude.svg",
-  Gemini: "/brand-icons/gemini.svg",
-  Grok: "/brand-icons/grok.svg",
-  Google: "/brand-icons/google.png",
-  "API/CDK": "/brand-icons/chatgpt.svg",
-  邮箱: "/brand-icons/gmail.png",
 };
 
 const problems = [
@@ -210,6 +201,7 @@ export default async function AboutPage() {
             </a>
           </nav>
           <div className="flex items-center gap-2">
+            <ThemeToggle compact labelFrom="never" />
             <Link
               href="/?submit=channel"
               className="hidden h-10 items-center gap-2 rounded-full bg-white px-4 text-sm font-semibold text-[#2d3435] shadow-[0_10px_30px_rgba(45,52,53,0.06)] ring-1 ring-[#adb3b4]/25 transition hover:-translate-y-0.5 hover:bg-[#f5f7f7] sm:inline-flex"
@@ -262,11 +254,7 @@ export default async function AboutPage() {
                   key={platform}
                   className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-[#5a6061] ring-1 ring-[#adb3b4]/15"
                 >
-                  {platformIconMap[platform] ? (
-                    <Image src={platformIconMap[platform]} alt="" width={16} height={16} className="h-4 w-4 object-contain" />
-                  ) : (
-                    <Radar size={14} />
-                  )}
+                  <BrandIcon platform={platform} className="h-4 w-4" />
                   {platform}
                 </span>
               ))}
