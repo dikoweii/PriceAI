@@ -1,4 +1,5 @@
 import { getAdminPasswordFromRequest } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { clearAdminDataCache } from "@/lib/data";
 import { requireAdminPassword } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase";
@@ -80,8 +81,9 @@ export async function POST(request: Request) {
       jobs: data || rows,
     });
   } catch (error) {
+    logApiError("admin collection jobs", error);
     return Response.json(
-      { ok: false, message: error instanceof Error ? error.message : "创建采集任务失败。" },
+      { ok: false, message: safeApiErrorMessage(error, "创建采集任务失败。") },
       { status: error instanceof z.ZodError ? 400 : 500 },
     );
   }

@@ -5,6 +5,7 @@ import {
   upsertRawOffers,
   upsertSource,
 } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { normalizeCollectorKind } from "@/lib/collector-registry";
 import { clearPublicDataCache } from "@/lib/data";
 import { requireAdminOrCronPassword } from "@/lib/env";
@@ -79,8 +80,9 @@ export async function POST(request: Request) {
       results: isBatch ? results.map(compactResult) : undefined,
     });
   } catch (error) {
+    logApiError("admin crawl log", error);
     return Response.json(
-      { ok: false, message: error instanceof Error ? error.message : "记录采集结果失败。" },
+      { ok: false, message: safeApiErrorMessage(error, "记录采集结果失败。") },
       { status: error instanceof z.ZodError ? 400 : 500 },
     );
   }

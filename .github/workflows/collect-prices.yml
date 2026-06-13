@@ -62,3 +62,28 @@ jobs:
           )
 
           npm run collect:prices -- --all --post --endpoint "$BASE_URL" --exclude-kind dujiao,shopApi
+
+      - name: Notify failure
+        if: failure()
+        env:
+          WEBHOOK_URL: ${{ secrets.PRICEAI_ALERT_WEBHOOK_URL }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            exit 0
+          fi
+
+          node <<'NODE'
+          const payload = {
+            title: "PriceAI GitHub Actions 失败",
+            message: `${process.env.GITHUB_WORKFLOW} #${process.env.GITHUB_RUN_NUMBER} failed on ${process.env.GITHUB_REF_NAME}`,
+            severity: "warning",
+            source: "github-actions",
+            runUrl: `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`,
+          };
+
+          await fetch(process.env.WEBHOOK_URL, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          NODE

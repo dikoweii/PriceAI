@@ -1564,6 +1564,12 @@ function normalizeSourceCollectorKind(value: unknown): Source["collectorKind"] {
 export function mapRawOffer(row: Record<string, unknown>): RawOffer {
   const sourceTitle = String(row.source_title || "");
   const tags = Array.isArray(row.tags) ? row.tags.map(String) : [];
+  const filterTags =
+    Array.isArray(row.filter_tags)
+      ? row.filter_tags.map(String)
+      : Array.isArray(row.public_filter_tags)
+        ? row.public_filter_tags.map(String)
+        : deriveOfferFilterTags({ sourceTitle, tags });
 
   return {
     id: String(row.id),
@@ -1576,7 +1582,7 @@ export function mapRawOffer(row: Record<string, unknown>): RawOffer {
     status: String(row.status || "unknown") as RawOffer["status"],
     url: String(row.url || ""),
     tags,
-    filterTags: deriveOfferFilterTags({ sourceTitle, tags }),
+    filterTags,
     stockCount: row.stock_count === null || row.stock_count === undefined ? null : Number(row.stock_count),
     hidden: Boolean(row.hidden),
     canonicalProductId: row.canonical_product_id ? String(row.canonical_product_id) : null,

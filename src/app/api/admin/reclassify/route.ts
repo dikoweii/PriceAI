@@ -1,5 +1,6 @@
 import { canonicalCatalog, classifyOffer } from "@/lib/catalog";
 import { getAdminPasswordFromRequest } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { clearPublicDataCache } from "@/lib/data";
 import { requireAdminPassword } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase";
@@ -100,8 +101,9 @@ export async function POST(request: Request) {
       distribution: Object.fromEntries(distribution.entries()),
     });
   } catch (error) {
+    logApiError("admin reclassify", error);
     return Response.json(
-      { ok: false, message: errorMessage(error) },
+      { ok: false, message: safeApiErrorMessage(error, "重建分类失败。") },
       { status: 500 },
     );
   }
@@ -145,12 +147,4 @@ async function forEachRawOfferPage(
     onPage(rows);
     if (rows.length < pageSize) break;
   }
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in error) {
-    return String((error as { message?: unknown }).message || "重建分类失败。");
-  }
-  return "重建分类失败。";
 }

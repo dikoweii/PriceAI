@@ -1,4 +1,5 @@
 import { getAdminPasswordFromRequest, setRawOfferHidden } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { clearPublicDataCache } from "@/lib/data";
 import { requireAdminPassword } from "@/lib/env";
 import { revalidatePath } from "next/cache";
@@ -22,8 +23,9 @@ export async function POST(request: Request) {
 
     return Response.json({ ok: true, ...result });
   } catch (error) {
+    logApiError("admin toggle offer", error);
     return Response.json(
-      { ok: false, message: error instanceof Error ? error.message : "更新失败。" },
+      { ok: false, message: safeApiErrorMessage(error, "更新失败。") },
       { status: error instanceof z.ZodError ? 400 : 500 },
     );
   }

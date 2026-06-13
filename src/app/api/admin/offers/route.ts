@@ -1,4 +1,5 @@
 import { getAdminPasswordFromRequest } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { listAdminOfferMaintenancePage } from "@/lib/data";
 import { requireAdminPassword } from "@/lib/env";
 import { z } from "zod";
@@ -30,8 +31,9 @@ export async function GET(request: Request) {
 
     return Response.json({ ok: true, ...page });
   } catch (error) {
+    logApiError("admin offers list", error);
     return Response.json(
-      { ok: false, message: error instanceof Error ? error.message : "读取报价失败。" },
+      { ok: false, message: safeApiErrorMessage(error, "读取报价失败。") },
       { status: error instanceof z.ZodError ? 400 : 500 },
     );
   }

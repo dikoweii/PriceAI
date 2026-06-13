@@ -1,4 +1,5 @@
 import { getAdminPasswordFromRequest, listSubmissions } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { requireAdminPassword } from "@/lib/env";
 import type { SubmissionStatus } from "@/lib/types";
 
@@ -10,8 +11,9 @@ export async function GET(request: Request) {
     const submissions = await listSubmissions(status);
     return Response.json({ ok: true, submissions });
   } catch (error) {
+    logApiError("admin submissions list", error);
     return Response.json(
-      { ok: false, message: error instanceof Error ? error.message : "读取失败。" },
+      { ok: false, message: safeApiErrorMessage(error, "读取失败。") },
       { status: 500 },
     );
   }

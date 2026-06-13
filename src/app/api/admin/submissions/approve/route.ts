@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { approveSubmission, getAdminPasswordFromRequest } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { normalizeCollectorKind } from "@/lib/collector-registry";
 import { clearPublicDataCache } from "@/lib/data";
 import { requireAdminPassword } from "@/lib/env";
@@ -28,10 +29,11 @@ export async function POST(request: Request) {
     clearPublicDataCache();
     return Response.json({ ok: true, ...result });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "审核失败。";
+    logApiError("admin submission approve", error);
+    const rawMessage = error instanceof Error ? error.message : "审核失败。";
     return Response.json(
-      { ok: false, message },
-      { status: error instanceof z.ZodError ? 400 : errorStatus(message) },
+      { ok: false, message: safeApiErrorMessage(error, "审核失败。") },
+      { status: error instanceof z.ZodError ? 400 : errorStatus(rawMessage) },
     );
   }
 }

@@ -72,6 +72,7 @@ export function ApiModelsExplorer({ dataset }: { dataset: ApiModelDataset }) {
   const [submitNotes, setSubmitNotes] = useState("");
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const isDesktop = useMediaQuery("(min-width: 768px)");
 
   const familyOptions = useMemo(() => getApiModelFamilyOptions(dataset), [dataset]);
   const familyTabs = useMemo<CategoryTabItem[]>(
@@ -90,7 +91,8 @@ export function ApiModelsExplorer({ dataset }: { dataset: ApiModelDataset }) {
     [familyOptions],
   );
   const allModelCount = useMemo(() => getApiModelSummaries("all", dataset).length, [dataset]);
-  const normalizedQuery = query.trim().toLowerCase();
+  const debouncedQuery = useDebouncedValue(query, 250);
+  const normalizedQuery = debouncedQuery.trim().toLowerCase();
   const modelSummaries = useMemo(
     () =>
       getApiModelSummaries(family, dataset)
@@ -557,33 +559,36 @@ export function ApiModelsExplorer({ dataset }: { dataset: ApiModelDataset }) {
 
       {scopeMode === "models" ? (
         modelSummaries.length ? (
-          <>
+          isDesktop === false ? (
             <ApiModelSummaryMobileList summaries={modelSummaries} currency={currency} returnQuery={explorerQueryString} />
+          ) : (
             <div className="hidden md:block">
               <ApiModelSummaryTable summaries={modelSummaries} currency={currency} returnQuery={explorerQueryString} />
             </div>
-          </>
+          )
         ) : (
           <EmptyState text="没有符合条件的标准模型" />
         )
       ) : scopeMode === "offers" ? (
         offerRows.length ? (
-          <>
+          isDesktop === false ? (
             <ApiOfferMobileList rows={offerRows} currency={currency} returnQuery={explorerQueryString} />
+          ) : (
             <div className="hidden md:block">
               <ApiOfferTable rows={offerRows} currency={currency} returnQuery={explorerQueryString} />
             </div>
-          </>
+          )
         ) : (
           <EmptyState text="没有符合条件的报价明细" />
         )
       ) : providerSummaries.length ? (
-        <>
+        isDesktop === false ? (
           <ApiProviderSummaryMobileList summaries={providerSummaries} currency={currency} returnQuery={explorerQueryString} />
+        ) : (
           <div className="hidden md:block">
             <ApiProviderSummaryTable summaries={providerSummaries} currency={currency} returnQuery={explorerQueryString} />
           </div>
-        </>
+        )
       ) : (
         <EmptyState text="没有符合条件的渠道或 Token Plan" />
       )}
@@ -1498,4 +1503,31 @@ function parseSubmittedUrls(value: string): string[] {
     .map((item) => item.trim())
     .filter(Boolean)))
     .slice(0, 10);
+}
+
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(query);
+    const updateMatches = () => setMatches(mediaQuery.matches);
+
+    updateMatches();
+    mediaQuery.addEventListener("change", updateMatches);
+
+    return () => mediaQuery.removeEventListener("change", updateMatches);
+  }, [query]);
+
+  return matches;
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setDebouncedValue(value), delayMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [delayMs, value]);
+
+  return debouncedValue;
 }

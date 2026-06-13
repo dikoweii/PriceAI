@@ -1,54 +1,41 @@
-name: Collect ShopApi Prices
+name: Collect Official Prices
 
 on:
   schedule:
-    # 与主采集任务和 dujiao 专项任务错开，只跑 shopApi 来源。
-    # shopApi 会按主域分组并发；同一主域内部仍然串行。
-    - cron: "5,35 * * * *"
-  workflow_dispatch: {}
+    # 与 vercel.json 保持同频 UTC 调度：每日汇率刷新、每周全量刷新。
+    - cron: "10 18 * * *"
+    - cron: "30 18 * * 0"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "official price collection mode"
+        required: false
+        default: "fx_only"
+        type: choice
+        options:
+          - fx_only
+          - weekly_full
 
 concurrency:
-  group: collect-shopapi-prices
+  group: collect-official-prices
   cancel-in-progress: false
 
 jobs:
-  collect:
+  enqueue:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 5
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Use Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --omit=dev
-
-      - name: Collect shopApi prices in runner
+      - name: Enqueue official price job
         env:
           COLLECT_PRICES_URL: ${{ secrets.COLLECT_PRICES_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          ADMIN_PASSWORD: ${{ secrets.CRON_SECRET }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          PRICEAI_COLLECTOR_NODE_ID: github-actions-shopapi
-          PRICEAI_COLLECTOR_NODE_NAME: GitHub Actions ShopApi
-          PRICEAI_COLLECTOR_NODE_TYPE: ci
-          PRICEAI_COLLECTOR_NODE_RUNTIME: github-actions
-          PRICEAI_COLLECTOR_NODE_REGION: github-hosted
+          REQUESTED_MODE: ${{ github.event.inputs.mode }}
+          SCHEDULE: ${{ github.event.schedule }}
         run: |
           set -euo pipefail
 
           if [ -z "$COLLECT_PRICES_URL" ] || [ -z "$CRON_SECRET" ]; then
             echo "缺少 COLLECT_PRICES_URL 或 CRON_SECRET secret"
-            exit 1
-          fi
-          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            echo "缺少 NEXT_PUBLIC_SUPABASE_URL 或 SUPABASE_SERVICE_ROLE_KEY secret"
             exit 1
           fi
 
@@ -62,7 +49,15 @@ jobs:
           NODE
           )
 
-          npm run collect:prices -- --all --kind shopApi --concurrency 2 --post --endpoint "$BASE_URL" --liandong-shop-limit 10
+          MODE="${REQUESTED_MODE:-fx_only}"
+          if [ "$SCHEDULE" = "30 18 * * 0" ]; then
+            MODE="weekly_full"
+          fi
+
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            "$BASE_URL/api/cron/official-prices?mode=$MODE"
 
       - name: Notify failure
         if: failure()

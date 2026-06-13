@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { probeSource } from "../../../../../../scripts/collect-prices.mjs";
 import { getAdminPasswordFromRequest, recordSubmissionProbeResult } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { requireAdminPassword } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase";
 
@@ -52,10 +53,11 @@ export async function POST(request: Request) {
 
     return Response.json({ ok: true, result, submission: updated });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "试采集失败。";
+    logApiError("admin submission probe", error);
+    const rawMessage = error instanceof Error ? error.message : "试采集失败。";
     return Response.json(
-      { ok: false, message },
-      { status: error instanceof z.ZodError ? 400 : errorStatus(message) },
+      { ok: false, message: safeApiErrorMessage(error, "试采集失败。") },
+      { status: error instanceof z.ZodError ? 400 : errorStatus(rawMessage) },
     );
   }
 }

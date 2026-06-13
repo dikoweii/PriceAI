@@ -1,4 +1,5 @@
 import { getAdminPasswordFromRequest } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { clearApiModelDatasetCache, updateApiProviderSubmissionReview } from "@/lib/api-models-db";
 import { clearAdminDataCache } from "@/lib/data";
 import { requireAdminPassword } from "@/lib/env";
@@ -241,8 +242,9 @@ export async function PATCH(request: Request) {
     clearApiModelCaches();
     return Response.json({ ok: true, offer: data });
   } catch (error) {
+    logApiError("admin api models update", error);
     return Response.json(
-      { ok: false, message: error instanceof Error ? error.message : "更新 API 模型数据失败。" },
+      { ok: false, message: safeApiErrorMessage(error, "更新 API 模型数据失败。") },
       { status: error instanceof z.ZodError ? 400 : 500 },
     );
   }

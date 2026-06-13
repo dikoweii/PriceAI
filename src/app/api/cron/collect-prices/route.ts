@@ -1,4 +1,7 @@
 import { loadTargets, runPriceCollection } from "../../../../../scripts/collect-prices.mjs";
+import { getAdminPasswordFromRequest } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
+import { requireAdminOrCronPassword } from "@/lib/env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,12 +58,13 @@ async function runCronCollection(request: Request) {
       startedAt: result.startedAt || startedAt,
     });
   } catch (error) {
+    logApiError("cron collect prices", error);
     return Response.json(
       {
         ok: false,
         startedAt,
         finishedAt: new Date().toISOString(),
-        message: error instanceof Error ? error.message : "定时采集失败。",
+        message: safeApiErrorMessage(error, "定时采集失败。"),
       },
       { status: 500 },
     );
@@ -68,21 +72,17 @@ async function runCronCollection(request: Request) {
 }
 
 function authorizeCronRequest(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const adminPassword = process.env.ADMIN_PASSWORD;
-
-  if (!secret && process.env.NODE_ENV === "production") {
+  if (!process.env.CRON_SECRET && process.env.NODE_ENV === "production") {
     return Response.json(
       { ok: false, message: "CRON_SECRET 未配置，已拒绝执行定时采集。" },
       { status: 500 },
     );
   }
 
-  const authorization = request.headers.get("authorization");
-  if (secret && authorization === `Bearer ${secret}`) return null;
-
-  const adminHeader = request.headers.get("x-admin-password");
-  if (adminPassword && adminHeader === adminPassword) return null;
-
-  return Response.json({ ok: false, message: "无权执行定时采集。" }, { status: 401 });
+  try {
+    requireAdminOrCronPassword(getAdminPasswordFromRequest(request));
+    return null;
+  } catch {
+    return Response.json({ ok: false, message: "无权执行定时采集。" }, { status: 401 });
+  }
 }

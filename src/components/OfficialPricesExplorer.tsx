@@ -35,8 +35,10 @@ export function OfficialPricesExplorer({ dataset }: { dataset: OfficialPricesDat
   const [scopeMode, setScopeMode] = useState<ScopeMode>("products");
   const [query, setQuery] = useState("");
   const [urlStateReady, setUrlStateReady] = useState(false);
+  const isDesktop = useMediaQuery("(min-width: 768px)");
 
-  const normalizedQuery = query.trim().toLowerCase();
+  const debouncedQuery = useDebouncedValue(query, 250);
+  const normalizedQuery = debouncedQuery.trim().toLowerCase();
   const summaries = useMemo(
     () =>
       buildOfficialPricePlanSummaries(dataset, platform)
@@ -206,22 +208,24 @@ export function OfficialPricesExplorer({ dataset }: { dataset: OfficialPricesDat
 
       {scopeMode === "products" ? (
         summaries.length ? (
-          <>
+          isDesktop === false ? (
             <OfficialPlanMobileList summaries={summaries} returnQuery={explorerQueryString} />
+          ) : (
             <div className="hidden md:block">
               <OfficialPlanTable summaries={summaries} returnQuery={explorerQueryString} />
             </div>
-          </>
+          )
         ) : (
           <EmptyState text="没有符合条件的标准套餐" />
         )
       ) : offers.length ? (
-        <>
+        isDesktop === false ? (
           <OfficialOfferMobileList rows={offers} returnQuery={explorerQueryString} />
+        ) : (
           <div className="hidden md:block">
             <OfficialOfferTable rows={offers} returnQuery={explorerQueryString} />
           </div>
-        </>
+        )
       ) : (
         <EmptyState text="没有符合条件的地区报价" />
       )}
@@ -631,4 +635,31 @@ function comparePrice(a: number | null | undefined, b: number | null | undefined
   if (typeof a !== "number") return 1;
   if (typeof b !== "number") return -1;
   return a - b;
+}
+
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(query);
+    const updateMatches = () => setMatches(mediaQuery.matches);
+
+    updateMatches();
+    mediaQuery.addEventListener("change", updateMatches);
+
+    return () => mediaQuery.removeEventListener("change", updateMatches);
+  }, [query]);
+
+  return matches;
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setDebouncedValue(value), delayMs);
+    return () => window.clearTimeout(timeoutId);
+  }, [delayMs, value]);
+
+  return debouncedValue;
 }

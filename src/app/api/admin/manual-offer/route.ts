@@ -1,4 +1,5 @@
 import { getAdminPasswordFromRequest, upsertRawOffer } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { clearPublicDataCache } from "@/lib/data";
 import { requireAdminPassword } from "@/lib/env";
 import { z } from "zod";
@@ -25,8 +26,9 @@ export async function POST(request: Request) {
 
     return Response.json({ ok: true, offer });
   } catch (error) {
+    logApiError("admin manual offer", error);
     return Response.json(
-      { ok: false, message: error instanceof Error ? error.message : "保存失败。" },
+      { ok: false, message: safeApiErrorMessage(error, "保存失败。") },
       { status: error instanceof z.ZodError ? 400 : 500 },
     );
   }

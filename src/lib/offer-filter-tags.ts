@@ -100,7 +100,11 @@ export function offerMatchesFilterTags(
 ): boolean {
   if (!selectedTags.length) return true;
 
-  const offerTags = new Set(deriveOfferFilterTags(offer));
+  const offerTags = new Set(
+    offer.filterTags && offer.filterTags.length
+      ? parseOfferFilterTags(offer.filterTags)
+      : deriveOfferFilterTags(offer),
+  );
 
   return selectedTags.every((tag) => offerTags.has(tag));
 }

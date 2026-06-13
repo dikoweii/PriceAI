@@ -1,4 +1,5 @@
 import { deleteSource, getAdminPasswordFromRequest, setSourceOffersHidden, updateSourceState, upsertSource } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { normalizeCollectorKind } from "@/lib/collector-registry";
 import { clearPublicDataCache } from "@/lib/data";
 import { requireAdminPassword } from "@/lib/env";
@@ -42,8 +43,9 @@ export async function POST(request: Request) {
 
     return Response.json({ ok: true, source });
   } catch (error) {
+    logApiError("admin source create", error);
     return Response.json(
-      { ok: false, message: error instanceof Error ? error.message : "保存来源失败。" },
+      { ok: false, message: safeApiErrorMessage(error, "保存来源失败。") },
       { status: error instanceof z.ZodError ? 400 : 500 },
     );
   }
@@ -77,8 +79,9 @@ export async function PATCH(request: Request) {
 
     return Response.json({ ok: true, source });
   } catch (error) {
+    logApiError("admin source update", error);
     return Response.json(
-      { ok: false, message: error instanceof Error ? error.message : "更新来源失败。" },
+      { ok: false, message: safeApiErrorMessage(error, "更新来源失败。") },
       { status: error instanceof z.ZodError ? 400 : 500 },
     );
   }
@@ -93,8 +96,9 @@ export async function DELETE(request: Request) {
 
     return Response.json({ ok: true, ...result });
   } catch (error) {
+    logApiError("admin source delete", error);
     return Response.json(
-      { ok: false, message: error instanceof Error ? error.message : "删除来源失败。" },
+      { ok: false, message: safeApiErrorMessage(error, "删除来源失败。") },
       { status: error instanceof z.ZodError ? 400 : 500 },
     );
   }

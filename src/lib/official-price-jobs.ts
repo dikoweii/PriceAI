@@ -1,4 +1,5 @@
 import { getAdminPasswordFromRequest } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { requireAdminOrCronPassword } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { stableId } from "@/lib/utils";
@@ -66,12 +67,13 @@ export async function enqueueOfficialPriceCollectionJob(
       job: data || row,
     });
   } catch (error) {
+    logApiError("official price job enqueue", error);
     return Response.json(
       {
         ok: false,
         startedAt,
         finishedAt: new Date().toISOString(),
-        message: error instanceof Error ? error.message : "创建官方地区价采集任务失败。",
+        message: safeApiErrorMessage(error, "创建官方地区价采集任务失败。"),
       },
       { status: 500 },
     );

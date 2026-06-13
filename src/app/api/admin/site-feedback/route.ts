@@ -3,6 +3,7 @@ import {
   listSiteFeedback,
   updateSiteFeedbackStatus,
 } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { clearAdminDataCache } from "@/lib/data";
 import { requireAdminPassword } from "@/lib/env";
 import { z } from "zod";
@@ -23,8 +24,9 @@ export async function GET(request: Request) {
     const feedback = await listSiteFeedback(status);
     return Response.json({ ok: true, feedback });
   } catch (error) {
+    logApiError("admin site feedback list", error);
     return Response.json(
-      { ok: false, message: error instanceof Error ? error.message : "加载反馈失败。" },
+      { ok: false, message: safeApiErrorMessage(error, "加载反馈失败。") },
       { status: error instanceof z.ZodError ? 400 : 500 },
     );
   }
@@ -38,8 +40,9 @@ export async function PATCH(request: Request) {
     clearAdminDataCache();
     return Response.json({ ok: true, feedback });
   } catch (error) {
+    logApiError("admin site feedback update", error);
     return Response.json(
-      { ok: false, message: error instanceof Error ? error.message : "处理反馈失败。" },
+      { ok: false, message: safeApiErrorMessage(error, "处理反馈失败。") },
       { status: error instanceof z.ZodError ? 400 : 500 },
     );
   }

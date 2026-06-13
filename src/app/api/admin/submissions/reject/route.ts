@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getAdminPasswordFromRequest, rejectSubmission } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { clearAdminDataCache } from "@/lib/data";
 import { requireAdminPassword } from "@/lib/env";
 
@@ -16,10 +17,11 @@ export async function POST(request: Request) {
     clearAdminDataCache();
     return Response.json({ ok: true, submission });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "操作失败。";
+    logApiError("admin submission reject", error);
+    const rawMessage = error instanceof Error ? error.message : "操作失败。";
     return Response.json(
-      { ok: false, message },
-      { status: error instanceof z.ZodError ? 400 : errorStatus(message) },
+      { ok: false, message: safeApiErrorMessage(error, "操作失败。") },
+      { status: error instanceof z.ZodError ? 400 : errorStatus(rawMessage) },
     );
   }
 }

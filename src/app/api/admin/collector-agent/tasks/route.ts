@@ -1,4 +1,5 @@
 import { getAdminPasswordFromRequest } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { requireAdminOrCronPassword } from "@/lib/env";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { z } from "zod";
@@ -84,12 +85,13 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     const status = error instanceof z.ZodError ? 400 : isUnauthorizedError(error) ? 401 : 500;
+    logApiError("collector agent tasks", error);
     return Response.json(
       {
         ok: false,
         message: status === 500
           ? "下发采集任务失败。"
-          : error instanceof Error ? error.message : "下发采集任务失败。",
+          : safeApiErrorMessage(error, "下发采集任务失败。"),
       },
       { status },
     );

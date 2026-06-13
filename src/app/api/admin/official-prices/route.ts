@@ -1,4 +1,5 @@
 import { getAdminPasswordFromRequest } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { clearAdminDataCache } from "@/lib/data";
 import { requireAdminPassword } from "@/lib/env";
 import { clearOfficialPricesCache } from "@/lib/official-prices-db";
@@ -76,8 +77,9 @@ export async function PATCH(request: Request) {
     clearOfficialCaches();
     return Response.json({ ok: true, price: data });
   } catch (error) {
+    logApiError("admin official prices update", error);
     return Response.json(
-      { ok: false, message: error instanceof Error ? error.message : "更新官方地区价失败。" },
+      { ok: false, message: safeApiErrorMessage(error, "更新官方地区价失败。") },
       { status: error instanceof z.ZodError ? 400 : 500 },
     );
   }

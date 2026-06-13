@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { collectApiModels } from "../../../../../../scripts/collect-api-models.mjs";
 import { getAdminPasswordFromRequest } from "@/lib/admin";
+import { logApiError, safeApiErrorMessage } from "@/lib/api-errors";
 import { staticApiModelDataset } from "@/lib/api-models";
 import { requireAdminPassword } from "@/lib/env";
 
@@ -26,10 +27,11 @@ export async function POST(request: Request) {
 
     return Response.json({ ok: true, result });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "API 模型试采集失败。";
+    logApiError("admin api models probe", error);
+    const rawMessage = error instanceof Error ? error.message : "API 模型试采集失败。";
     return Response.json(
-      { ok: false, message },
-      { status: error instanceof z.ZodError ? 400 : errorStatus(message) },
+      { ok: false, message: safeApiErrorMessage(error, "API 模型试采集失败。") },
+      { status: error instanceof z.ZodError ? 400 : errorStatus(rawMessage) },
     );
   }
 }

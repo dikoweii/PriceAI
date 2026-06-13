@@ -84,6 +84,7 @@ const PRODUCT_SKELETON_ROWS = [0, 1, 2];
 const EXPLORER_CACHE_KEY = "priceai:explorer:v2";
 const EXPLORER_CACHE_TTL_MS = 5 * 60 * 1000;
 const OFFER_LIST_CACHE_TTL_MS = 2 * 60 * 1000;
+const OFFER_LIST_MEMORY_CACHE_LIMIT = 40;
 const RETURN_HOME_INTENT_KEY = "priceai:return-home-intent";
 const stockOptions = ["all", "available", "out_of_stock"] as const;
 const sortOptions = ["available_price", "price", "updated", "channels"] as const;
@@ -447,7 +448,7 @@ export function PriceExplorer({
         readSessionCache<OfferListResponse>(cacheKey, OFFER_LIST_CACHE_TTL_MS);
 
       if (cachedOffers) {
-        offerListMemoryCache.set(cacheKey, cachedOffers);
+        rememberOfferList(cacheKey, cachedOffers);
         setOfferResponse(cachedOffers);
         setOffersLoading(false);
       } else {
@@ -460,7 +461,7 @@ export function PriceExplorer({
       try {
         const nextResponse = await fetchOfferPage(requestQueryString, 0, controller.signal);
         if (activeOfferQueryRef.current !== requestQueryString) return;
-        offerListMemoryCache.set(cacheKey, nextResponse);
+        rememberOfferList(cacheKey, nextResponse);
         writeSessionCache(cacheKey, nextResponse);
         setOfferResponse(nextResponse);
       } catch (error) {
@@ -505,7 +506,7 @@ export function PriceExplorer({
         };
 
         const cacheKey = offerListCacheKey(offerQueryString, 0);
-        offerListMemoryCache.set(cacheKey, mergedResponse);
+        rememberOfferList(cacheKey, mergedResponse);
         writeSessionCache(cacheKey, mergedResponse);
 
         return mergedResponse;
@@ -1686,6 +1687,17 @@ async function fetchExplorerData(signal?: AbortSignal): Promise<ExplorerData> {
 
 function offerListCacheKey(queryString: string, offset: number): string {
   return `priceai:offers:v1:${queryString || "all"}:${offset}:${OFFER_PAGE_SIZE}`;
+}
+
+function rememberOfferList(cacheKey: string, value: OfferListResponse) {
+  offerListMemoryCache.delete(cacheKey);
+  offerListMemoryCache.set(cacheKey, value);
+
+  while (offerListMemoryCache.size > OFFER_LIST_MEMORY_CACHE_LIMIT) {
+    const oldestKey = offerListMemoryCache.keys().next().value;
+    if (!oldestKey) break;
+    offerListMemoryCache.delete(oldestKey);
+  }
 }
 
 function metricValue(value: number, loading: boolean): string {
