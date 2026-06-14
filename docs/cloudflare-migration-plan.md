@@ -206,8 +206,9 @@ npm run deploy:cloudflare
 - 使用 GitHub secrets 保存 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID`。
 - 构建前执行 `npm run check:cloudflare-env`，避免 CI 缺少构建变量时生成降级数据版本。
 - 执行 `npm ci`、`npm run lint`、`npm run build:cloudflare`、`npm run deploy:cloudflare`。
-- `deploy:cloudflare` 会把 `--keep-vars` 透传给 Wrangler，避免部署时覆盖 Cloudflare Dashboard 中维护的 runtime variables。
-- 部署后自动执行 `npm run smoke:cloudflare`。
+- `build:cloudflare` 会把构建必需 env 传给 OpenNext，构建后扫描 `.open-next/cache/**/*.cache`，出现演示数据、`configured=false`、`source=static`、种子时间或种子总数即失败，防止把 fallback HTML 上传到 R2 incremental cache。
+- `deploy:cloudflare` 会先校验完整生产部署环境，再把 `--keep-vars` 透传给 Wrangler，避免部署时覆盖 Cloudflare Dashboard 中维护的 runtime variables。
+- 部署后自动执行 `npm run smoke:cloudflare`，除 status/size 外，还校验首页、官方订阅、API 模型页不含 fallback/static 标记，并确认 `/api/health`、`/api/explorer`、`/api/offers` 使用真实 Supabase 数据。
 - Umami 的公开配置也作为构建必需变量检查，避免静态预渲染页面漏掉自部署 Umami 脚本。
 
 不建议让普通 push 自动切生产。Cloudflare Worker 部署仍使用手动触发，并保留回滚窗口。

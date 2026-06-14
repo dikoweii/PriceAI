@@ -16,11 +16,14 @@
 ## 本地验证
 
 ```bash
+npm run check:cloudflare-env -- --build
 npm run build:cloudflare
 npm run preview:cloudflare
 ```
 
 `preview:cloudflare` 会启动 Wrangler 本地预览。不要把 `.dev.vars` 提交到仓库；本地预览需要的密钥应放在 `.dev.vars` 或 Cloudflare secrets。
+
+`build:cloudflare` 会把本地可用的 Cloudflare 构建环境加载到 OpenNext 构建进程里，其中 Umami 公开 vars 可从 `wrangler.jsonc` 补齐。构建后会扫描 `.open-next/cache/**/*.cache`，只要预渲染缓存里出现演示数据提示、`configured=false`、`source=static`、种子时间或种子报价总数，就会中止构建，避免把 fallback HTML 上传到 R2 incremental cache。
 
 ## 本次验证记录
 
@@ -77,7 +80,8 @@ Cloudflare 资源：
 
 - Cloudflare remote secrets 已配置并挂到 Worker version：Supabase、后台、Cron、GA 共 8 项。
 - OpenNext/Cloudflare 运行时不能只依赖 `process.env`；应用通过 `src/lib/runtime-env.ts` 先读 `process.env`，再兜底读取 OpenNext 的 Cloudflare request context `env`。
-- `build:cloudflare` 和 `deploy:cloudflare` 会执行 `scripts/sanitize-opennext-env.mjs`，避免 `.open-next` 上传包残留本地 `.env*` 内容。
+- `build:cloudflare` 会先校验构建期 Supabase / Umami 配置，再执行 OpenNext build、验证 `.open-next/cache` 不含 seed/demo/static 标记，最后执行 `scripts/sanitize-opennext-env.mjs`，避免 `.open-next` 上传包残留本地 `.env*` 内容。
+- `deploy:cloudflare` 会在部署前校验完整生产环境（Cloudflare API、Supabase、后台、Cron、GA、Umami），再次执行 `scripts/sanitize-opennext-env.mjs`，并通过 Wrangler `--keep-vars` 保留 Cloudflare Dashboard 中维护的 runtime variables；注意 runtime variables 不能修复构建阶段已经写入 R2 的预渲染缓存。
 - `wrangler.jsonc` 使用 `nodejs_compat_populate_process_env`，并声明 `secrets.required`，用于让 Wrangler 在部署前检查远端 secrets。
 - GitHub Actions 手动预览部署已通过：workflow run `27472035881` 完成环境检查、lint、Cloudflare build、deploy 和 smoke test。
 
