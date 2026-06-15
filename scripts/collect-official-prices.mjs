@@ -606,7 +606,7 @@ async function insertOfficialCollectRun(supabase, result, options) {
   const { data, error } = await supabase
     .from("official_subscription_collect_runs")
     .insert({
-      mode: options.mode || "manual",
+      mode: officialCollectRunMode(options.mode),
       target_app_slug: result.scope.apps.length === 1 ? result.scope.apps[0] : null,
       target_region_codes: result.scope.regions,
       status: result.run.status,
@@ -628,6 +628,13 @@ async function insertOfficialCollectRun(supabase, result, options) {
 
   if (error) throw error;
   return data.id;
+}
+
+export function officialCollectRunMode(value) {
+  const mode = String(value || "").trim();
+  if (mode === "manual" || mode === "cron" || mode === "worker") return mode;
+  if (mode === "github-actions" || mode === "github_actions" || mode === "ci") return "worker";
+  return "manual";
 }
 
 async function listExistingCurrentPrices(supabase, dbRows, appMap, regionMap, planMap) {

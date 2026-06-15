@@ -115,9 +115,9 @@ jobs:
 
           MODE="${REQUESTED_MODE:-weekly_full}"
           if [ "$MODE" = "fx_only" ]; then
-            npm run collect:official -- --fx-only --post --mode=github-actions
+            npm run collect:official -- --fx-only --post --mode=worker
           else
-            npm run collect:official -- --all --post --mode=github-actions
+            npm run collect:official -- --all --post --mode=worker
           fi
 
       - name: Notify failure

@@ -4,7 +4,12 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { extractInAppPurchasePairs, loadFallbackFxSnapshot, parsePriceValue } from "./collect-official-prices.mjs";
+import {
+  extractInAppPurchasePairs,
+  loadFallbackFxSnapshot,
+  officialCollectRunMode,
+  parsePriceValue,
+} from "./collect-official-prices.mjs";
 
 const html = `
   <div class="text-pair svelte-1gyt6l2"><span>ChatGPT Plus</span> <span>₺499,99</span></div>
@@ -51,6 +56,12 @@ assert.equal(parsePriceValue("฿699.00"), 699);
 assert.equal(parsePriceValue("RM99.90"), 99.9);
 assert.equal(parsePriceValue("Rp 349ribu"), 349000);
 assert.equal(parsePriceValue("Rp 3,499juta"), 3499000);
+assert.equal(officialCollectRunMode("github-actions"), "worker");
+assert.equal(officialCollectRunMode("github_actions"), "worker");
+assert.equal(officialCollectRunMode("ci"), "worker");
+assert.equal(officialCollectRunMode("worker"), "worker");
+assert.equal(officialCollectRunMode("cron"), "cron");
+assert.equal(officialCollectRunMode("unexpected"), "manual");
 
 const tempDir = await mkdtemp(path.join(os.tmpdir(), "priceai-official-fx-"));
 const latestPath = path.join(tempDir, "latest.json");
