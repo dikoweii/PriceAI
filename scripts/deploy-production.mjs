@@ -60,6 +60,7 @@ function parseArgs(args) {
     wait: false,
     dryRun: false,
     allowTrackedChanges: false,
+    allowRemoteRefMismatch: false,
   };
 
   for (const arg of args) {
@@ -69,6 +70,7 @@ function parseArgs(args) {
     else if (arg === "--wait") parsed.wait = true;
     else if (arg === "--dry-run") parsed.dryRun = true;
     else if (arg === "--allow-tracked-changes") parsed.allowTrackedChanges = true;
+    else if (arg === "--allow-remote-ref-mismatch") parsed.allowRemoteRefMismatch = true;
     else if (arg.startsWith("--ref=")) parsed.ref = arg.slice("--ref=".length) || DEFAULT_REF;
     else if (arg.startsWith("--smoke-base-url=")) {
       parsed.smokeBaseUrl = arg.slice("--smoke-base-url=".length) || DEFAULT_BASE_URL;
@@ -104,6 +106,7 @@ Options:
   --ref=<git-ref>                 Workflow ref to deploy, default: ${DEFAULT_REF}
   --smoke-base-url=<url>          Smoke target, default: ${DEFAULT_BASE_URL}
   --allow-tracked-changes         Allow GitHub deploy while tracked files are modified locally
+  --allow-remote-ref-mismatch     Allow GitHub deploy when the local ref differs from origin
 `);
 }
 
@@ -145,10 +148,28 @@ async function runGithubCloudflareDeploy(trackedChanges, runOptions) {
     return;
   }
 
+  const deploySha = resolveRemoteGitRef(runOptions.ref) || resolveGitRef(runOptions.ref);
+  const localSha = resolveGitRef(runOptions.ref);
+
+  if (localSha && deploySha && localSha !== deploySha && !runOptions.allowRemoteRefMismatch) {
+    fail(
+      [
+        `Local ref "${runOptions.ref}" differs from origin/${runOptions.ref}.`,
+        "GitHub Actions deploys the remote ref, so local committed-but-unpushed changes would be missing from production.",
+        "Push or sync the branch first, or pass --allow-remote-ref-mismatch if you intentionally want to deploy the current remote ref.",
+      ].join("\n"),
+    );
+  }
+
+  const triggerStartedAt = new Date(Date.now() - 5000).toISOString();
+
   runChecked("gh", args);
   console.log("Cloudflare deployment workflow triggered.");
 
-  const run = await latestWorkflowRun(runOptions.ref);
+  const run = await latestWorkflowRun(runOptions.ref, {
+    createdAfter: triggerStartedAt,
+    headSha: deploySha,
+  });
   if (run?.url) {
     console.log(`Run URL: ${run.url}`);
   } else {
@@ -224,7 +245,7 @@ function printLocalEnvSummary(missing) {
   console.log(`Local Cloudflare deploy env missing ${missing.length} value(s): ${missing.join(", ")}`);
 }
 
-async function latestWorkflowRun(ref) {
+async function latestWorkflowRun(ref, filter = {}) {
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const result = spawnSync(
       "gh",
@@ -236,7 +257,7 @@ async function latestWorkflowRun(ref) {
         "--branch",
         ref,
         "--limit",
-        "1",
+        "10",
         "--json",
         "databaseId,url,status,conclusion,headBranch,headSha,createdAt",
       ],
@@ -246,7 +267,12 @@ async function latestWorkflowRun(ref) {
     if (result.status === 0) {
       try {
         const runs = JSON.parse(result.stdout);
-        const run = Array.isArray(runs) ? runs[0] : null;
+        const candidates = Array.isArray(runs) ? runs : [];
+        const run = candidates.find((candidate) => {
+          if (filter.headSha && candidate.headSha !== filter.headSha) return false;
+          if (filter.createdAfter && isBefore(candidate.createdAt, filter.createdAfter)) return false;
+          return true;
+        });
         if (run) return run;
       } catch {
         return null;
@@ -257,6 +283,35 @@ async function latestWorkflowRun(ref) {
   }
 
   return null;
+}
+
+function resolveGitRef(ref) {
+  const local = gitOutput(["rev-parse", ref]);
+  if (local) return local;
+
+  const remoteBranch = gitOutput(["rev-parse", `origin/${ref}`]);
+  return remoteBranch || "";
+}
+
+function resolveRemoteGitRef(ref) {
+  if (/^[0-9a-f]{40}$/i.test(ref)) return ref;
+
+  const branch = parseLsRemote(gitOutput(["ls-remote", "--heads", "origin", ref]));
+  if (branch) return branch;
+
+  return parseLsRemote(gitOutput(["ls-remote", "--tags", "origin", ref]));
+}
+
+function parseLsRemote(output) {
+  const line = output.split("\n").find(Boolean);
+  return line?.split(/\s+/)[0] || "";
+}
+
+function isBefore(value, threshold) {
+  const valueTime = Date.parse(value);
+  const thresholdTime = Date.parse(threshold);
+  if (Number.isNaN(valueTime) || Number.isNaN(thresholdTime)) return value < threshold;
+  return valueTime < thresholdTime;
 }
 
 function gitStatus(args) {
