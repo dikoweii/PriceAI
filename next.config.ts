@@ -10,22 +10,6 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
-      ...[
-        "max",
-        "min",
-        "platform",
-        "q",
-        "scope",
-        "sort",
-        "stock",
-        "type",
-        "view",
-      ].map((key) => ({
-        source: "/",
-        has: [{ type: "query" as const, key }],
-        destination: "/channels",
-        permanent: true,
-      })),
       {
         source: "/$",
         destination: "/",
