@@ -476,7 +476,7 @@ export function AdminConsole({ data }: { data: AdminSummary }) {
       const existing = existingSourceForSubmission(s, sourceById);
       const suggestedCollector = collectorKindMeta(meta, "suggested_collector_kind");
       const hasValidSourceUrl = Boolean(displayableCanonicalSourceUrlForSubmission(s) || stringMeta(meta, "submitted_url_type") !== "product");
-      if (hasValidSourceUrl && (existing || (probe?.status === "success" && probe.offerCount > 0) || isRunnableCollector(suggestedCollector))) {
+      if (!isDuplicatePendingSubmission(s) && hasValidSourceUrl && (existing || (probe?.status === "success" && probe.offerCount > 0) || isRunnableCollector(suggestedCollector))) {
         ids.add(s.id);
       }
     }
@@ -3131,6 +3131,7 @@ function SubmissionCard({
   const canonicalSourceUrl = displayableCanonicalSourceUrlForSubmission(submission);
   const canonicalSourceStatus = stringMeta(meta, "canonical_source_status");
   const canonicalSourceReason = stringMeta(meta, "canonical_source_reason");
+  const duplicatePendingName = stringMeta(meta, "duplicate_pending_submission_name");
   const submittedUrlType = stringMeta(meta, "submitted_url_type");
   const parseError = typeof meta.parse_error === "string" ? meta.parse_error : null;
   const productPreview = submissionProductPreviewFromMeta(meta);
@@ -3138,7 +3139,8 @@ function SubmissionCard({
   const hasSuccessfulProbe = currentProbe?.status === "success" && currentProbe.offerCount > 0;
   const hasKnownCollector = isRunnableCollector(suggestedCollector);
   const hasValidSourceUrl = Boolean(canonicalSourceUrl || submittedUrlType !== "product");
-  const canApprove = hasValidSourceUrl && Boolean(existingSource || hasSuccessfulProbe || hasKnownCollector);
+  const duplicatePending = Boolean(duplicatePendingName || stringMeta(meta, "duplicate_pending_submission_id"));
+  const canApprove = !duplicatePending && hasValidSourceUrl && Boolean(existingSource || hasSuccessfulProbe || hasKnownCollector);
 
   const [mode, setMode] = useState<"idle" | "approve" | "todo" | "reject">("idle");
   const [name, setName] = useState(submission.name || suggestedName || submission.parsedTitle || "");
@@ -3233,6 +3235,7 @@ function SubmissionCard({
               {platform && <Badge>{platform}</Badge>}
               {productType && <Badge>{productType}</Badge>}
               {existingSource && <Badge tone="info">已有源: {existingSource.name}</Badge>}
+              {duplicatePending && <Badge tone="warn">重复待审</Badge>}
               {parseError && <Badge tone="warn">解析失败</Badge>}
             </div>
           </div>
@@ -3303,6 +3306,7 @@ function SubmissionCard({
             <p><span className="font-medium text-[#2d3435]">初步判断：</span>{supportReason || "已完成基础链接解析。"}</p>
             {canonicalSourceReason && <p><span className="font-medium text-[#2d3435]">渠道解析：</span>{canonicalSourceReason}</p>}
             {existingSource && <p><span className="font-medium text-[#2d3435]">合并目标：</span>{existingSource.name}</p>}
+            {duplicatePending && <p><span className="font-medium text-[#2d3435]">重复待审：</span>{duplicatePendingName || "已有更新记录"}</p>}
           </div>
 
           {productPreview && <SubmissionProductPreviewPanel preview={productPreview} />}
@@ -7678,15 +7682,20 @@ function buildCollectorContext(submission: ChannelSubmission): string {
 }
 
 function existingSourceForSubmission(submission: ChannelSubmission, sourceById: Map<string, Source>): Source | null {
-  const sourceId = suggestedSourceIdForSubmission(submission);
+  const meta = submission.parsedMeta || {};
+  const sourceId = stringMeta(meta, "existing_source_id") || suggestedSourceIdForSubmission(submission);
   if (!sourceId) return null;
 
-  const meta = submission.parsedMeta || {};
   if (stringMeta(meta, "submitted_url_type") === "product" && !displayableCanonicalSourceUrlForSubmission(submission)) {
     return null;
   }
 
   return sourceById.get(sourceId) || null;
+}
+
+function isDuplicatePendingSubmission(submission: ChannelSubmission): boolean {
+  const meta = submission.parsedMeta || {};
+  return Boolean(stringMeta(meta, "duplicate_pending_submission_id"));
 }
 
 function reparseFeedbackText(submission: ChannelSubmission): string {

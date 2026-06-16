@@ -107,20 +107,30 @@ async function listVisibleOfferRows() {
     "freshness_status",
   ].join(",");
 
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
+  let lastId = "";
+
+  for (;;) {
+    let query = supabase
       .from("raw_offers")
       .select(select)
       .eq("hidden", false)
       .order("id", { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
+      .limit(PAGE_SIZE);
+
+    if (lastId) query = query.gt("id", lastId);
+
+    const { data, error } = await query;
 
     if (error) throw error;
-    rows.push(...(data || []));
-    if (!data || data.length < PAGE_SIZE) break;
+    const batch = data || [];
+    rows.push(...batch);
+    if (batch.length < PAGE_SIZE) break;
+
+    lastId = String(batch[batch.length - 1].id || "");
+    if (!lastId) break;
   }
 
-  return rows;
+  return Array.from(new Map(rows.map((row) => [row.id, row])).values());
 }
 
 function duplicateCandidates(rows) {
